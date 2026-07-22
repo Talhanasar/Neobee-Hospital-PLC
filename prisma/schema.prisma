@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ShareCategory {
+  SHAREHOLDER
+  PREMIUM
+  DIRECTOR
+}
+
+enum InvestmentStatus {
+  PENDING
+  CONFIRMED
+}
+
+enum AdminRole {
+  ADMIN
+  SUPERADMIN
+}
+
+model Stakeholder {
+  id          String       @id @default(cuid())
+  name        String
+  phone       String?
+  email       String?      @unique
+  nid         String?
+  authUserId  String?      @unique // Supabase auth user id link
+  verifiedAt  DateTime? // set by admin after payment verification; null = unverified
+  createdAt   DateTime     @default(now())
+  deletedAt   DateTime?
+  investments Investment[]
+
+  @@index([deletedAt])
+  @@index([verifiedAt])
+}
+
+model Investment {
+  id                     String           @id @default(cuid())
+  stakeholderId          String
+  stakeholder            Stakeholder      @relation(fields: [stakeholderId], references: [id], onDelete: Cascade)
+  uniqueId               String           @unique // NEO-####
+  verificationCode       String           @unique // NB-XXXXXX
+  shares                 Int
+  category               ShareCategory
+  isFoundingEntrepreneur Boolean          @default(false)
+  amount                 BigInt
+  incentiveAmount        BigInt           @default(0)
+  depositDate            DateTime?
+  depositMethod          String?
+  paymentReference       String?
+  status                 InvestmentStatus @default(PENDING)
+  confirmedAt            DateTime?
+  notes                  String?
+  createdAt              DateTime         @default(now())
+  deletedAt              DateTime?
+  auditLogs              AuditLog[]
+
+  @@index([stakeholderId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Admin {
+  id         String    @id @default(cuid())
+  email      String    @unique
+  role       AdminRole @default(ADMIN)
+  authUserId String?   @unique
+  createdAt  DateTime  @default(now())
+}
+
+model AuditLog {
+  id           String     @id @default(cuid())
+  investmentId String
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  action       String // e.g. "CREATE", "CONFIRM", "EDIT", "RESEND_RECEIPT"
+  actor        String // admin id, or "self" for stakeholder self-action
+  detail       String? // optional JSON/text describing what changed
+  createdAt    DateTime   @default(now())
+
+  @@index([investmentId])
+}
