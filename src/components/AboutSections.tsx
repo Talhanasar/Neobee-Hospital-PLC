@@ -1,7 +1,5 @@
 "use client";
 
-import { useLang } from "@/lib/i18n/LanguageProvider";
-
 /**
  * Five about sections: purpose, location, governance, 50-entrepreneur model, how-to-deposit.
  * Copy is verbatim from the approved prototype (with the spec's bolded callouts).
@@ -10,18 +8,16 @@ import { useLang } from "@/lib/i18n/LanguageProvider";
  * dedicated `.font-bn` span so the Noto Sans Bengali fallback applies.
  */
 export default function AboutSections() {
-  const { t } = useLang();
-
   return (
     <div className="prose-section">
-      <SectionHeading>{t("about.purposeTitle")}</SectionHeading>
+      <SectionHeading>Our purpose</SectionHeading>
       <p>
         Commercial, yet humane —{" "}
         <span className="font-bn">কমার্শিয়াল কিন্তু মানবিক।</span> To serve the
         country and its people with whatever means Allah has granted us.
       </p>
 
-      <SectionHeading>{t("about.locationTitle")}</SectionHeading>
+      <SectionHeading>Location</SectionHeading>
       <p>
         Two sites have been shortlisted for the hospital — at{" "}
         <b>Panchlaish</b> and <b>beside Chattogram Medical College</b>. Site
@@ -29,7 +25,7 @@ export default function AboutSections() {
         sha Allah.
       </p>
 
-      <SectionHeading>{t("about.governanceTitle")}</SectionHeading>
+      <SectionHeading>Governance</SectionHeading>
       <p>
         Discussions with doctors are ongoing on a <b>60:40 basis</b>, with
         doctors being added through continuous exchange of views. The hospital
@@ -39,7 +35,7 @@ export default function AboutSections() {
         until inauguration.
       </p>
 
-      <SectionHeading>{t("about.modelTitle")}</SectionHeading>
+      <SectionHeading>The 50-entrepreneur model</SectionHeading>
       <p>
         The project will onboard <b>50 founding partners/entrepreneurs</b>.
         Entry is <b>৳20,00,000</b> (self-invested or raised through
@@ -53,7 +49,7 @@ export default function AboutSections() {
         of bonus shares on a 10-share subscription.
       </p>
 
-      <SectionHeading>{t("about.depositTitle")}</SectionHeading>
+      <SectionHeading>How to deposit</SectionHeading>
       <p>
         A bank account in the name of <b>NEOBEE</b> is being opened. Deposits
         are made to the institution&apos;s account only. On deposit, every

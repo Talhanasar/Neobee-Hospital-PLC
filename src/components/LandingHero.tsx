@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useLang } from "@/lib/i18n/LanguageProvider";
 
 /**
  * Marketing-grade hero for the landing page:
@@ -12,8 +11,6 @@ import { useLang } from "@/lib/i18n/LanguageProvider";
  *  - Subtle decorative hex motif (large soft hex + conic accent in the corner)
  */
 export default function LandingHero() {
-  const { t } = useLang();
-
   return (
     <section
       aria-labelledby="hero-title"
@@ -48,7 +45,7 @@ export default function LandingHero() {
         {/* Eyebrow chip */}
         <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-honey-soft bg-honey-soft/70 px-3 py-1 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-honey-deep">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-honey-deep" />
-          {t("hero.eyebrow")}
+          Chattogram · Founding phase open
         </div>
 
         {/* Heading + supporting line */}
@@ -56,15 +53,15 @@ export default function LandingHero() {
           id="hero-title"
           className="font-display text-[34px] font-extrabold leading-[1.05] tracking-[-0.02em] text-ink sm:text-[44px] md:text-[52px]"
         >
-          {t("hero.title")}
+          Neobee Hospital PLC
         </h1>
         <p className="mt-3 font-display text-[16px] font-medium text-ink-soft sm:text-[18px]">
-          {t("hero.supporting")}
+          A specialized, full-service hospital initiative in Chattogram.
         </p>
 
         {/* Subtitle */}
         <p className="mt-5 max-w-[640px] text-[15px] leading-relaxed text-ink-soft sm:text-[16px]">
-          {t("hero.subtitle")}
+          Shares of ৳2,00,000 each, opening with a 50-entrepreneur founding phase. Every deposit gets a unique ID, digital money receipt and QR verification.
         </p>
 
         {/* CTAs */}
@@ -73,14 +70,14 @@ export default function LandingHero() {
             href="/signup"
             className="inline-flex items-center justify-center rounded-full bg-honey px-7 py-3.5 font-display text-[15px] font-bold tracking-tight text-ink shadow-sm transition-colors hover:bg-[#d99408] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-honey-deep"
           >
-            {t("hero.ctaPrimary")}
+            Become a stakeholder
             <span aria-hidden="true" className="ml-2">→</span>
           </Link>
           <Link
             href="/verify"
             className="inline-flex items-center justify-center rounded-full border border-line bg-paper/70 px-6 py-3.5 text-[14.5px] font-semibold text-ink-soft transition-colors hover:border-ink hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-honey"
           >
-            {t("hero.ctaSecondary")}
+            Verify a receipt
           </Link>
         </div>
       </div>

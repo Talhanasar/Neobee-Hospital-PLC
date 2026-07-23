@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useLang } from "@/lib/i18n/LanguageProvider";
 import LanguageSwitcher from "./LanguageSwitcher";
 
 /**
@@ -9,8 +8,6 @@ import LanguageSwitcher from "./LanguageSwitcher";
  * Client component so the nav labels react to the language context.
  */
 export default function SiteHeader() {
-  const { t } = useLang();
-
   return (
     <header className="sticky top-0 z-20 border-b border-line/80 bg-paper/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-5 py-3 sm:gap-4">
@@ -18,10 +15,10 @@ export default function SiteHeader() {
           <HexMark />
           <div className="leading-tight">
             <div className="font-display text-[17px] font-extrabold tracking-tight">
-              {t("common.neobeeHospitalPlc")}
+              Neobee Hospital PLC
             </div>
             <div className="font-mono text-[10.5px] tracking-[0.14em] text-ink-soft uppercase">
-              {t("common.stakeholderFinancePortal")}
+              Stakeholder Finance Portal
             </div>
           </div>
         </Link>
@@ -30,16 +27,16 @@ export default function SiteHeader() {
           aria-label="Primary"
           className="order-3 flex w-full gap-1 rounded-full border border-line bg-panel/70 p-1 sm:order-2 sm:ml-auto sm:w-auto"
         >
-          <NavLink href="/" label={t("nav.project")} />
-          <NavLink href="/verify" label={t("nav.verify")} />
+          <NavLink href="/" label="Project" />
+          <NavLink href="/verify" label="Verify" />
         </nav>
 
         <Link
           href="/login"
           className="order-4 inline-flex items-center justify-center rounded-full bg-honey px-4 py-1.5 font-display text-[13px] font-bold tracking-tight text-ink shadow-sm transition-colors hover:bg-[#d99408] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-honey-deep sm:order-4"
-          aria-label={t("nav.signin")}
+          aria-label="Sign in"
         >
-          {t("nav.signin")}
+          Sign in
         </Link>
 
         <div className="order-2 ml-auto sm:order-3 sm:ml-0">

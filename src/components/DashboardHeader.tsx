@@ -15,7 +15,6 @@
 
 import LogoMark from "@/components/LogoMark";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
-import { useLang } from "@/lib/i18n/LanguageProvider";
 
 type DashboardHeaderProps = {
   identityLabel: string;
@@ -26,8 +25,6 @@ export default function DashboardHeader({
   identityLabel,
   signOutAction,
 }: DashboardHeaderProps) {
-  const { t } = useLang();
-
   return (
     <header className="sticky top-0 z-20 border-b border-line/80 bg-paper/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-5 py-3 sm:gap-4">
@@ -35,10 +32,10 @@ export default function DashboardHeader({
           <LogoMark />
           <div className="leading-tight">
             <div className="font-display text-[17px] font-extrabold tracking-tight">
-              {t("common.neobeeHospitalPlc")}
+              {"Neobee Hospital PLC"}
             </div>
             <div className="font-mono text-[10.5px] tracking-[0.14em] text-ink-soft uppercase">
-              {t("common.stakeholderFinancePortal")}
+              {"Stakeholder Finance Portal"}
             </div>
           </div>
         </div>
@@ -58,7 +55,7 @@ export default function DashboardHeader({
               type="submit"
               className="inline-flex items-center justify-center rounded-full border border-line bg-panel px-5 py-2 text-[13px] font-semibold text-ink-soft transition-[color,border-color,background-color,transform] duration-200 ease-out cursor-pointer hover:border-ink hover:text-ink active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-honey motion-reduce:transition-none motion-reduce:active:scale-100"
             >
-              {t("nav.signout")}
+              {"Log out"}
             </button>
           </form>
         </div>

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Inter, Archivo, IBM_Plex_Mono, Noto_Sans_Bengali } from "next/font/google";
-import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 import GoogleTranslate from "@/components/GoogleTranslate";
 import "./globals.css";
 
@@ -49,7 +48,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-paper text-ink">
         <GoogleTranslate />
-        <LanguageProvider>{children}</LanguageProvider>
+        {children}
       </body>
     </html>
   );

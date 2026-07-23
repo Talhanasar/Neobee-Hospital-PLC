@@ -1,7 +1,5 @@
 "use client";
 
-import { useLang } from "@/lib/i18n/LanguageProvider";
-
 /**
  * Side rail for the landing page. Desktop: stacked column next to the
  * AboutSections prose. Mobile: stacks under it.
@@ -15,24 +13,18 @@ import { useLang } from "@/lib/i18n/LanguageProvider";
  * Public info only — no target sums, no raised amounts.
  */
 export default function SideCards() {
-  const { t } = useLang();
-
   return (
     <aside className="flex flex-col gap-5">
-      <ShareCategoriesCard t={t} />
-      <ContactsCard t={t} />
-      <HowToDepositCard t={t} />
+      <ShareCategoriesCard />
+      <ContactsCard />
+      <HowToDepositCard />
     </aside>
   );
 }
 
 // ---------- Share categories (3 pricing tier cards) -----------------------
 
-function ShareCategoriesCard({
-  t,
-}: {
-  t: (path: Parameters<ReturnType<typeof useLang>["t"]>[0]) => string;
-}) {
+function ShareCategoriesCard() {
   return (
     <section
       aria-labelledby="side-categories-title"
@@ -43,32 +35,32 @@ function ShareCategoriesCard({
           id="side-categories-title"
           className="font-display text-[14px] font-bold uppercase tracking-[0.06em] text-ink-soft"
         >
-          {t("side.shareCategories")}
+          {"Share categories"}
         </h3>
         <p className="mt-1 text-[12.5px] text-ink-soft">
-          {t("side.shareCategoriesHint")}
+          {"Public pricing — entry into the 50-entrepreneur founding phase."}
         </p>
       </header>
 
       <div className="flex flex-col gap-3">
         <TierCard
           kind="shareholder"
-          badge={t("side.shareholderBadge")}
-          shareCount={t("side.oneShare")}
+          badge={"Shareholder"}
+          shareCount={"1 share"}
           price="৳2,00,000"
           badgeClass="bg-neutral-soft text-ink-soft"
         />
         <TierCard
           kind="premium"
-          badge={t("side.premiumBadge")}
-          shareCount={t("side.fiveShares")}
+          badge={"Premium"}
+          shareCount={"5 shares"}
           price="৳10,00,000"
           badgeClass="bg-honey-soft text-honey-deep"
         />
         <TierCard
           kind="director"
-          badge={t("side.directorBadge")}
-          shareCount={t("side.tenShares")}
+          badge={"Director"}
+          shareCount={"10 shares"}
           price="৳20,00,000"
           badgeClass="bg-green-soft text-green"
           topTier
@@ -135,11 +127,7 @@ function TierCard({
 
 // ---------- Contacts ------------------------------------------------------
 
-function ContactsCard({
-  t,
-}: {
-  t: (path: Parameters<ReturnType<typeof useLang>["t"]>[0]) => string;
-}) {
+function ContactsCard() {
   return (
     <section
       aria-labelledby="side-contacts-title"
@@ -149,12 +137,12 @@ function ContactsCard({
         id="side-contacts-title"
         className="mb-3 font-display text-[14px] font-bold uppercase tracking-[0.06em] text-ink-soft"
       >
-        {t("side.contacts")}
+        {"Contacts"}
       </h3>
       <div className="divide-y divide-line">
-        <Person name="Jahangir Alam Akash" role={t("side.chairman")} />
-        <Person name="Mizanur Rahman" role={t("side.spokesperson")} />
-        <Person name="Junayed" role={t("side.mdNeotech")} />
+        <Person name="Jahangir Alam Akash" role={"Chairman"} />
+        <Person name="Mizanur Rahman" role={"Project spokesperson"} />
+        <Person name="Junayed" role={"MD, NeoTech — digital partner"} />
       </div>
     </section>
   );
@@ -171,11 +159,7 @@ function Person({ name, role }: { name: string; role: string }) {
 
 // ---------- How to deposit (mini rail) -----------------------------------
 
-function HowToDepositCard({
-  t,
-}: {
-  t: (path: Parameters<ReturnType<typeof useLang>["t"]>[0]) => string;
-}) {
+function HowToDepositCard() {
   return (
     <section
       aria-labelledby="side-deposit-title"
@@ -185,10 +169,10 @@ function HowToDepositCard({
         id="side-deposit-title"
         className="mb-2 font-display text-[14px] font-bold uppercase tracking-[0.06em] text-honey-deep"
       >
-        {t("side.depositHighlight")}
+        {"How to deposit"}
       </h3>
       <p className="text-[13.5px] leading-relaxed text-ink">
-        {t("side.depositHighlightBody")}
+        {"Deposits go to the institution's NEOBEE bank account only. On deposit, every shareholder immediately receives a unique ID, a digital money receipt, and QR verification."}
       </p>
     </section>
   );
