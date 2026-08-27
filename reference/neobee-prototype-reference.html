@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neobee Hospital PLC — Stakeholder Finance Portal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Bengali:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#201D12;
+  --ink-soft:#5C5744;
+  --paper:#FDFCF7;
+  --panel:#FFFFFF;
+  --honey:#E9A215;
+  --honey-deep:#A96F05;
+  --honey-soft:#FBF0D6;
+  --green:#2F7D5B;
+  --green-soft:#E4F1EA;
+  --amber:#B26E00;
+  --amber-soft:#FBEED3;
+  --violet:#5B4B8A;
+  --violet-soft:#ECE7F7;
+  --blue:#1E5F8E;
+  --blue-soft:#E2EEF6;
+  --line:#E9E4D4;
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--paper);color:var(--ink);font-family:'Inter','Noto Sans Bengali',system-ui,sans-serif;font-size:15px;line-height:1.55}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:15px}
+
+/* ---------- header ---------- */
+header{border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:20}
+.header-inner{max-width:1120px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px}
+.hex-mark{width:38px;height:42px;flex:none}
+.brand{font-family:'Archivo',sans-serif;font-weight:800;font-size:17px;letter-spacing:-.01em;line-height:1.1}
+.brand small{display:block;font-family:'IBM Plex Mono',monospace;font-weight:400;font-size:10.5px;letter-spacing:.14em;color:var(--ink-soft);text-transform:uppercase;margin-top:2px}
+nav{margin-left:auto;display:flex;gap:4px;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:4px;flex-wrap:wrap}
+nav button{border:none;background:transparent;padding:8px 14px;border-radius:999px;font-weight:600;font-size:13px;color:var(--ink-soft)}
+nav button.active{background:var(--ink);color:#fff}
+nav button:focus-visible{outline:2px solid var(--honey);outline-offset:2px}
+
+/* ---------- layout ---------- */
+main{max-width:1120px;margin:0 auto;padding:28px 20px 80px}
+.view{display:none}
+.view.active{display:block}
+h1{font-family:'Archivo',sans-serif;font-weight:800;font-size:26px;letter-spacing:-.02em;margin-bottom:4px}
+.sub{color:var(--ink-soft);margin-bottom:24px;max-width:620px}
+
+/* ---------- progress banner ---------- */
+.goal{
+  background:var(--ink);color:#fff;border-radius:var(--radius);
+  padding:22px 24px;margin-bottom:22px;position:relative;overflow:hidden;
+}
+.goal::after{
+  content:"";position:absolute;right:-30px;top:-40px;width:180px;height:200px;opacity:.14;
+  background:
+    radial-gradient(circle, transparent 0, transparent 100%),
+    conic-gradient(from 30deg, var(--honey) 0 60deg, transparent 60deg 120deg, var(--honey) 120deg 180deg, transparent 180deg 240deg, var(--honey) 240deg 300deg, transparent 300deg);
+  clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);
+}
+.goal .g-top{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:baseline;margin-bottom:12px}
+.goal .g-title{font-family:'Archivo',sans-serif;font-weight:700;font-size:15px;letter-spacing:.02em}
+.goal .g-nums{font-family:'IBM Plex Mono',monospace;font-size:13.5px;color:#EDE6CE}
+.goal .g-nums b{color:var(--honey);font-weight:600}
+.bar{height:12px;background:rgba(255,255,255,.14);border-radius:999px;overflow:hidden}
+.bar > div{height:100%;background:linear-gradient(90deg,var(--honey),#F5C64F);border-radius:999px;transition:width .5s ease;min-width:4px}
+.goal .g-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:#CFC9B4}
+
+/* ---------- stats ---------- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 18px 16px;position:relative;overflow:hidden}
+.stat::before{content:"";position:absolute;top:14px;right:14px;width:14px;height:16px;background:var(--honey-soft);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.stat.confirmed::before{background:var(--green-soft)}
+.stat .label{font-size:11.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+.stat .value{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:22px;margin-top:6px}
+.stat .hint{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+
+/* ---------- card & table ---------- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:22px}
+.card-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head h2{font-family:'Archivo',sans-serif;font-size:16px;font-weight:700}
+.card-head .spacer{flex:1}
+.search,.filter{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--paper);font-size:13.5px}
+.search{min-width:190px}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--paper);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:13px}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.status.pending{background:var(--amber-soft);color:var(--amber)}
+.status.confirmed{background:var(--green-soft);color:var(--green)}
+.status .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.cat{display:inline-block;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:6px;white-space:nowrap}
+.cat.share{background:var(--blue-soft);color:var(--blue)}
+.cat.premium{background:var(--violet-soft);color:var(--violet)}
+.cat.director{background:var(--honey-soft);color:var(--honey-deep)}
+.row-actions{display:flex;gap:6px;justify-content:flex-end}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;color:var(--ink)}
+.btn:hover{border-color:var(--ink)}
+.btn:focus-visible{outline:2px solid var(--honey);outline-offset:2px}
+.btn.primary{background:var(--honey);border-color:var(--honey);color:var(--ink)}
+.btn.primary:hover{background:#d99408}
+.btn.dark{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn.danger:hover{border-color:#b3261e;color:#b3261e}
+.btn.sm{padding:5px 9px;font-size:12px}
+.empty{padding:48px 20px;text-align:center;color:var(--ink-soft)}
+.empty strong{display:block;font-family:'Archivo',sans-serif;color:var(--ink);font-size:16px;margin-bottom:4px}
+
+/* ---------- form ---------- */
+form.register{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px;max-width:680px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px}
+.field .help{font-size:12px;color:var(--ink-soft);margin-top:4px}
+.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--paper)}
+.field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--honey);outline-offset:0;border-color:var(--honey)}
+.field input[readonly]{background:#F4F1E6;color:var(--ink-soft)}
+.calc{
+  background:var(--honey-soft);border:1px solid #EFD9A4;border-radius:10px;
+  padding:14px 16px;margin-bottom:16px;font-size:13.5px;
+}
+.calc .row{display:flex;justify-content:space-between;gap:12px;padding:3px 0}
+.calc .row b{font-family:'IBM Plex Mono',monospace}
+.calc .row.total{border-top:1px dashed #D9BE79;margin-top:6px;padding-top:8px;font-weight:600}
+.check{display:flex;align-items:flex-start;gap:9px;font-size:13.5px;margin-bottom:16px}
+.check input{width:17px;height:17px;margin-top:2px;accent-color:var(--honey-deep)}
+.form-actions{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap}
+
+/* ---------- verify ---------- */
+.verify-wrap{max-width:600px}
+.verify-input{display:flex;gap:10px;margin-bottom:20px}
+.verify-input input{flex:1;border:1px solid var(--line);border-radius:10px;padding:13px 14px;font-family:'IBM Plex Mono',monospace;font-size:15px;letter-spacing:.06em;background:var(--panel)}
+.verify-input input:focus{outline:2px solid var(--honey);border-color:var(--honey)}
+.v-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px}
+.v-card .badge-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.v-card h3{font-family:'Archivo',sans-serif;font-size:18px}
+.v-detail{display:grid;grid-template-columns:170px 1fr;gap:8px 14px;font-size:14px;margin:14px 0 18px}
+.v-detail dt{color:var(--ink-soft)}
+.v-detail dd{font-weight:500}
+.notice{border-radius:10px;padding:12px 14px;font-size:13.5px;margin-top:14px}
+.notice.ok{background:var(--green-soft);color:var(--green)}
+.notice.warn{background:var(--amber-soft);color:var(--amber)}
+.notice.err{background:#FBE4E2;color:#B3261E}
+
+/* ---------- about / project ---------- */
+.about-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;align-items:start}
+.prose{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
+.prose h2{font-family:'Archivo',sans-serif;font-size:17px;margin:20px 0 8px}
+.prose h2:first-child{margin-top:0}
+.prose p{margin-bottom:10px;color:#3C382A}
+.prose .bn{font-family:'Noto Sans Bengali',sans-serif}
+.side-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin-bottom:18px}
+.side-card h3{font-family:'Archivo',sans-serif;font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:12px}
+.price-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);gap:10px}
+.price-row:last-child{border-bottom:none}
+.price-row .amt{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:13.5px}
+.person{padding:9px 0;border-bottom:1px solid var(--line)}
+.person:last-child{border-bottom:none}
+.person b{display:block;font-size:14px}
+.person span{font-size:12.5px;color:var(--ink-soft)}
+
+/* ---------- modal (QR + receipt) ---------- */
+.overlay{position:fixed;inset:0;background:rgba(32,29,18,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;overflow:auto}
+.overlay.open{display:flex}
+.modal{background:var(--panel);border-radius:18px;max-width:440px;width:100%;padding:28px;text-align:center;position:relative;margin:auto}
+.modal.wide{max-width:560px;text-align:left}
+.modal .close{position:absolute;top:12px;right:12px;border:none;background:transparent;font-size:20px;color:var(--ink-soft);padding:6px 10px;border-radius:8px}
+.modal .close:hover{background:var(--paper)}
+.modal h3{font-family:'Archivo',sans-serif;font-size:18px;margin-bottom:2px}
+.modal .sub2{font-size:13px;color:var(--ink-soft);margin-bottom:18px}
+.hex-frame{width:230px;height:258px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;background:var(--honey);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.hex-frame .inner{width:214px;height:242px;background:#fff;display:flex;align-items:center;justify-content:center;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+#qrbox img,#qrbox canvas,#r-qr img,#r-qr canvas{display:block}
+.code-pill{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:16px;letter-spacing:.1em;background:var(--paper);border:1px dashed var(--honey-deep);border-radius:8px;padding:8px 14px;display:inline-block;margin-bottom:14px}
+.modal .actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+
+/* ---------- receipt ---------- */
+.receipt{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.r-head{background:var(--ink);color:#fff;padding:18px 22px;display:flex;gap:12px;align-items:center}
+.r-head .hex-mark{width:32px;height:36px}
+.r-head .t{font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;line-height:1.2}
+.r-head .t small{display:block;font-family:'IBM Plex Mono',monospace;font-weight:400;font-size:9.5px;letter-spacing:.16em;color:#CFC9B4;text-transform:uppercase;margin-top:2px}
+.r-head .rn{margin-left:auto;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#CFC9B4}
+.r-head .rn b{display:block;font-size:13px;color:var(--honey);font-weight:600}
+.r-body{padding:20px 22px;display:grid;grid-template-columns:1fr 130px;gap:18px}
+.r-rows{font-size:13.5px}
+.r-row{display:flex;justify-content:space-between;gap:14px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.r-row:last-child{border-bottom:none}
+.r-row .k{color:var(--ink-soft)}
+.r-row .v{font-weight:600;text-align:right}
+.r-row .v.mono{font-weight:500}
+.r-amount{background:var(--honey-soft);border-radius:10px;padding:10px 14px;margin-top:12px;display:flex;justify-content:space-between;align-items:baseline}
+.r-amount .k{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--honey-deep)}
+.r-amount .v{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:19px}
+.r-words{font-size:12px;color:var(--ink-soft);margin-top:6px;font-style:italic}
+.r-qr-col{text-align:center}
+.r-qr-col .cap{font-size:10.5px;color:var(--ink-soft);margin-top:6px;line-height:1.3}
+.r-foot{border-top:1px solid var(--line);padding:12px 22px;font-size:11px;color:var(--ink-soft);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+
+/* ---------- toast ---------- */
+#toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,20px);background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13.5px;font-weight:500;opacity:0;pointer-events:none;transition:all .25s ease;z-index:60}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:760px){
+  .grid2{grid-template-columns:1fr}
+  nav{width:100%;justify-content:flex-start;margin-left:0}
+  .table-scroll{overflow-x:auto}
+  table{min-width:820px}
+  .v-detail{grid-template-columns:1fr;gap:2px}
+  .v-detail dt{margin-top:8px}
+  .about-grid{grid-template-columns:1fr}
+  .r-body{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media print{
+  header,nav,.no-print,#toast{display:none!important}
+  body{background:#fff}
+  .overlay{position:static;background:none;padding:0;display:block!important}
+  .modal{box-shadow:none;max-width:100%;padding:0}
+  .modal .close,.modal .actions{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <svg class="hex-mark" viewBox="0 0 38 42" aria-hidden="true">
+        <polygon points="19,1 36,11 36,31 19,41 2,31 2,11" fill="#E9A215"/>
+        <polygon points="19,8 30,14.5 30,27.5 19,34 8,27.5 8,14.5" fill="#201D12"/>
+        <text x="19" y="26" text-anchor="middle" font-family="Archivo,sans-serif" font-weight="800" font-size="13" fill="#E9A215">N</text>
+      </svg>
+      <div class="brand">Neobee Hospital PLC
+        <small>Stakeholder Finance Portal</small>
+      </div>
+    </div>
+    <nav aria-label="Main">
+      <button id="tab-dashboard" class="active" onclick="showView('dashboard')">Dashboard</button>
+      <button id="tab-register" onclick="showView('register')">New shareholder</button>
+      <button id="tab-verify" onclick="showView('verify')">Verify (QR)</button>
+      <button id="tab-about" onclick="showView('about')">Project</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ================= DASHBOARD ================= -->
+<section id="view-dashboard" class="view active">
+  <h1>Capital raise dashboard</h1>
+  <p class="sub">Live position of the Neobee Hospital PLC capital raise — ৳300 crore project target, shares of ৳2,00,000 each, opening with a 50-entrepreneur founding phase. Every deposit gets a unique ID, digital money receipt and QR verification.</p>
+
+  <div class="goal">
+    <div class="g-top">
+      <div class="g-title">Founding raise progress</div>
+      <div class="g-nums"><b id="g-raised">৳0</b> raised of <b>৳3,00,00,00,000</b> (300 crore) target</div>
+    </div>
+    <div class="bar"><div id="g-bar" style="width:0%"></div></div>
+    <div class="g-foot">
+      <span id="g-entre">0 / 50 entrepreneur slots filled</span>
+      <span id="g-founding">Founding phase: ৳0 of ৳10,00,00,000</span>
+      <span id="g-shares">0 / 15,000 shares subscribed</span>
+      <span id="g-pct">0% of target</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="label">Total subscribed</div>
+      <div class="value" id="stat-total">৳0</div>
+      <div class="hint" id="stat-count">0 subscriptions</div>
+    </div>
+    <div class="stat confirmed">
+      <div class="label">Confirmed by investors</div>
+      <div class="value" id="stat-confirmed">৳0</div>
+      <div class="hint" id="stat-confirmed-count">0 confirmed</div>
+    </div>
+    <div class="stat">
+      <div class="label">Awaiting confirmation</div>
+      <div class="value" id="stat-pending">৳0</div>
+      <div class="hint" id="stat-pending-count">0 pending</div>
+    </div>
+    <div class="stat confirmed">
+      <div class="label">Share incentives due</div>
+      <div class="value" id="stat-incentive">৳0</div>
+      <div class="hint">৳20,000 per entrepreneur share</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Shareholder register</h2>
+      <div class="spacer"></div>
+      <select class="filter" id="filter-cat" onchange="renderTable()">
+        <option value="">All categories</option>
+        <option value="Shareholder">Shareholder (1 share)</option>
+        <option value="Premium Shareholder">Premium (5+ shares)</option>
+        <option value="Director Shareholder">Director (10+ shares)</option>
+      </select>
+      <select class="filter" id="filter-status" onchange="renderTable()">
+        <option value="">All statuses</option>
+        <option value="pending">Pending</option>
+        <option value="confirmed">Confirmed</option>
+      </select>
+      <input class="search" id="search" type="search" placeholder="Search name, ID or code…" oninput="renderTable()">
+      <button class="btn primary no-print" onclick="showView('register')">+ New shareholder</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Unique ID</th><th>Shareholder</th><th>Category</th><th>Shares</th><th>Amount</th><th>Deposit</th><th>Status</th><th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty" style="display:none">
+      <strong>No shareholders registered yet</strong>
+      Register the first subscription to issue its unique ID, digital receipt and QR code.
+    </div>
+  </div>
+</section>
+
+<!-- ================= REGISTER ================= -->
+<section id="view-register" class="view">
+  <h1>Register a shareholder</h1>
+  <p class="sub">On saving, the system issues a unique ID, a QR verification code and a digital money receipt — as promised to every shareholder on deposit.</p>
+
+  <form class="register" onsubmit="return saveInvestment(event)">
+    <div class="grid2">
+      <div class="field">
+        <label for="f-name">Shareholder name *</label>
+        <input id="f-name" required placeholder="e.g. Farhana Rahman">
+      </div>
+      <div class="field">
+        <label for="f-contact">Phone / email</label>
+        <input id="f-contact" placeholder="e.g. 01700-000000">
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label for="f-shares">Number of shares *</label>
+        <input id="f-shares" required type="number" min="1" max="100" value="1" oninput="recalc()">
+        <div class="help">1 share = ৳2,00,000</div>
+      </div>
+      <div class="field">
+        <label for="f-cat">Category (auto)</label>
+        <input id="f-cat" readonly value="Shareholder">
+      </div>
+    </div>
+    <div class="check">
+      <input type="checkbox" id="f-entre" onchange="recalc()">
+      <label for="f-entre"><b>Founding entrepreneur</b> — one of the 50 project entrepreneurs (৳20 lakh entry, used for land registration bayna). Entitled to the ৳20,000 per-share incentive.</label>
+    </div>
+    <div class="calc" id="calc"></div>
+    <div class="grid2">
+      <div class="field">
+        <label for="f-date">Deposit date</label>
+        <input id="f-date" type="date">
+      </div>
+      <div class="field">
+        <label for="f-method">Deposit method</label>
+        <select id="f-method">
+          <option>Bank deposit — NEOBEE account</option>
+          <option>Bank transfer</option>
+          <option>Cheque</option>
+          <option>Mobile banking</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label for="f-ref">Bank / payment reference</label>
+        <input id="f-ref" placeholder="Deposit slip / cheque no.">
+      </div>
+      <div class="field">
+        <label for="f-nid">NID / passport (optional)</label>
+        <input id="f-nid" placeholder="For share registry">
+      </div>
+    </div>
+    <div class="field">
+      <label for="f-notes">Notes</label>
+      <textarea id="f-notes" rows="2" placeholder="Optional"></textarea>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn primary">Save — issue ID, receipt &amp; QR</button>
+      <button type="button" class="btn" onclick="showView('dashboard')">Cancel</button>
+    </div>
+  </form>
+</section>
+
+<!-- ================= VERIFY ================= -->
+<section id="view-verify" class="view">
+  <h1>Verify your investment</h1>
+  <p class="sub">Scan the QR on your receipt with any phone camera, then enter the code shown — or type your unique ID — to check your shareholding and confirm the record is correct.</p>
+
+  <div class="verify-wrap">
+    <div class="verify-input">
+      <input id="v-code" placeholder="NB-XXXXXX or NEO-0001" autocapitalize="characters" spellcheck="false"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();lookupCode();}">
+      <button class="btn dark" onclick="lookupCode()">Check</button>
+    </div>
+    <div class="verify-result" id="v-result"></div>
+  </div>
+</section>
+
+<!-- ================= ABOUT / PROJECT ================= -->
+<section id="view-about" class="view">
+  <h1>About the project</h1>
+  <p class="sub">Neobee Hospital PLC — a specialized, full-service hospital initiative in Chattogram.</p>
+
+  <div class="about-grid">
+    <div class="prose">
+      <h2>Our purpose</h2>
+      <p>Commercial, yet humane — <span class="bn">কমার্শিয়াল কিন্তু মানবিক।</span> To serve the country and its people with whatever means Allah has granted us.</p>
+
+      <h2>Location</h2>
+      <p>Two sites have been shortlisted for the hospital — at <b>Panchlaish</b> and <b>beside Chattogram Medical College</b>. Site selection is near-final; the project will proceed at one of the two, In sha Allah.</p>
+
+      <h2>Governance</h2>
+      <p>Discussions with doctors are ongoing on a <b>60:40 basis</b>, with doctors being added through continuous exchange of views. The hospital will be governed by a combined board of doctors and civilian entrepreneurs. Qualified entrepreneurs will be given a place on the management committee, with a special salary structure for directors until inauguration.</p>
+
+      <h2>The 50-entrepreneur model</h2>
+      <p>The project will onboard <b>50 founding partners/entrepreneurs</b>. Entry is <b>৳20,00,000</b> (self-invested or raised through shareholders), used for the registered bayna of the land. Entrepreneurs must be honest and responsible.</p>
+      <p><b>Entrepreneur benefits:</b> a planned monthly honorarium from construction through inauguration; eligibility for the management committee; and a <b>৳20,000 share incentive per share</b> — ৳2,00,000 of bonus shares on a 10-share subscription.</p>
+
+      <h2>How to deposit</h2>
+      <p>A bank account in the name of <b>NEOBEE</b> is being opened. Deposits are made to the institution's account only. On deposit, every shareholder immediately receives a <b>unique ID</b>, a <b>digital money receipt</b>, and <b>website access</b> — digital services delivered in partnership with <b>NeoTech</b>.</p>
+    </div>
+
+    <div>
+      <div class="side-card">
+        <h3>Share categories</h3>
+        <div class="price-row"><span><span class="cat share">Shareholder</span> 1 share</span><span class="amt">৳2,00,000</span></div>
+        <div class="price-row"><span><span class="cat premium">Premium</span> 5 shares</span><span class="amt">৳10,00,000</span></div>
+        <div class="price-row"><span><span class="cat director">Director</span> 10 shares</span><span class="amt">৳20,00,000</span></div>
+      </div>
+      <div class="side-card">
+        <h3>Raise target</h3>
+        <div class="price-row"><span>Project target</span><span class="amt">৳300 crore</span></div>
+        <div class="price-row"><span>Total shares</span><span class="amt">15,000</span></div>
+        <div class="price-row"><span>Founding phase (50 × ৳20 lakh)</span><span class="amt">৳10 crore</span></div>
+        <div class="price-row"><span>Entrepreneur slots</span><span class="amt">50</span></div>
+      </div>
+      <div class="side-card">
+        <h3>Contacts</h3>
+        <div class="person"><b>Jahangir Alam Akash</b><span>Chairman</span></div>
+        <div class="person"><b>Mizanur Rahman</b><span>Project spokesperson</span></div>
+        <div class="person"><b>Junayed</b><span>MD, NeoTech — digital partner</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ================= QR MODAL ================= -->
+<div class="overlay" id="qr-overlay" role="dialog" aria-modal="true" aria-labelledby="qr-title">
+  <div class="modal">
+    <button class="close no-print" onclick="closeOverlay('qr-overlay')" aria-label="Close">✕</button>
+    <h3 id="qr-title">Verification QR</h3>
+    <p class="sub2" id="qr-sub"></p>
+    <div class="hex-frame"><div class="inner"><div id="qrbox"></div></div></div>
+    <div class="code-pill" id="qr-code-text"></div>
+    <div class="actions no-print">
+      <button class="btn primary" onclick="downloadQR()">Download PNG</button>
+      <button class="btn" onclick="openReceiptById(currentQR && currentQR.id)">View receipt</button>
+      <button class="btn" onclick="copyCode()">Copy code</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= RECEIPT MODAL ================= -->
+<div class="overlay" id="receipt-overlay" role="dialog" aria-modal="true" aria-labelledby="r-title">
+  <div class="modal wide">
+    <button class="close no-print" onclick="closeOverlay('receipt-overlay')" aria-label="Close">✕</button>
+    <h3 id="r-title" class="no-print" style="margin-bottom:14px">Digital money receipt</h3>
+    <div class="receipt" id="receipt-body"><!-- filled by JS --></div>
+    <div class="actions no-print" style="margin-top:16px">
+      <button class="btn primary" onclick="window.print()">Print / save PDF</button>
+      <button class="btn" onclick="openQRById(currentReceipt && currentReceipt.id)">Show QR</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script>
+/* =========================================================
+   Neobee Hospital PLC — Stakeholder Finance Portal (prototype)
+   Share price ৳2,00,000 · 50 entrepreneurs · target ৳10 crore
+   Data persists via the artifact storage API (shared key).
+   ========================================================= */
+const SHARE_PRICE = 200000;
+const INCENTIVE_PER_SHARE = 20000;
+const TARGET_AMOUNT = 3000000000;  /* ৳300 crore project target */
+const TARGET_SHARES = 15000;       /* 300 cr ÷ ৳2,00,000 per share */
+const FOUNDING_AMOUNT = 100000000; /* founding phase: 50 × ৳20,00,000 */
+const TARGET_ENTREPRENEURS = 50;
+const STORE_KEY = 'neobee-investments-v2';
+
+let investments = [];
+let currentQR = null;
+let currentReceipt = null;
+
+const fmt = n => '৳' + Number(n).toLocaleString('en-IN');
+const today = () => new Date().toISOString().slice(0,10);
+
+/* ---------- storage ---------- */
+async function loadData(){
+  try{
+    const res = await window.storage.get(STORE_KEY, true);
+    if(res && res.value) investments = JSON.parse(res.value);
+  }catch(e){ investments = []; }
+  renderAll();
+}
+async function persist(){
+  try{ await window.storage.set(STORE_KEY, JSON.stringify(investments), true); }
+  catch(e){ toast('Could not save — data will not persist this session'); }
+}
+
+/* ---------- views ---------- */
+function showView(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='register'){
+    const d=document.getElementById('f-date'); if(!d.value) d.value=today();
+    recalc();
+  }
+}
+
+/* ---------- category & calc ---------- */
+function categoryFor(shares){
+  if(shares>=10) return 'Director Shareholder';
+  if(shares>=5)  return 'Premium Shareholder';
+  return 'Shareholder';
+}
+function catClass(cat){
+  return cat==='Director Shareholder' ? 'director' : cat==='Premium Shareholder' ? 'premium' : 'share';
+}
+function recalc(){
+  const shares = Math.max(1, parseInt(document.getElementById('f-shares').value)||1);
+  const entre = document.getElementById('f-entre').checked;
+  const cat = categoryFor(shares);
+  document.getElementById('f-cat').value = cat;
+  const amount = shares*SHARE_PRICE;
+  const incentive = entre ? shares*INCENTIVE_PER_SHARE : 0;
+  document.getElementById('calc').innerHTML = `
+    <div class="row"><span>${shares} share${shares>1?'s':''} × ${fmt(SHARE_PRICE)}</span><b>${fmt(amount)}</b></div>
+    ${entre?`<div class="row"><span>Entrepreneur share incentive (${shares} × ৳20,000)</span><b>+ ${fmt(incentive)} in bonus shares</b></div>`:''}
+    <div class="row total"><span>Amount to deposit</span><b>${fmt(amount)}</b></div>`;
+}
+
+/* ---------- register ---------- */
+function genCode(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c;
+  do{ c='NB-'+Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join(''); }
+  while(investments.some(i=>i.code===c));
+  return c;
+}
+function genUID(){
+  const n = investments.length + 1;
+  let uid, k=n;
+  do{ uid='NEO-'+String(k).padStart(4,'0'); k++; }
+  while(investments.some(i=>i.uid===uid));
+  return uid;
+}
+
+async function saveInvestment(e){
+  e.preventDefault();
+  const shares = Math.max(1, parseInt(document.getElementById('f-shares').value)||1);
+  const entre = document.getElementById('f-entre').checked;
+  const rec = {
+    id: Date.now().toString(36),
+    uid: genUID(),
+    code: genCode(),
+    name: document.getElementById('f-name').value.trim(),
+    contact: document.getElementById('f-contact').value.trim(),
+    nid: document.getElementById('f-nid').value.trim(),
+    shares,
+    amount: shares*SHARE_PRICE,
+    category: categoryFor(shares),
+    entrepreneur: entre,
+    incentive: entre ? shares*INCENTIVE_PER_SHARE : 0,
+    date: document.getElementById('f-date').value || today(),
+    method: document.getElementById('f-method').value,
+    ref: document.getElementById('f-ref').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    confirmedAt: null
+  };
+  if(!rec.name){ toast('Please enter the shareholder name'); return false; }
+  investments.unshift(rec);
+  await persist();
+  e.target.reset();
+  document.getElementById('f-shares').value = 1;
+  renderAll();
+  showView('dashboard');
+  openReceipt(rec);
+  toast(`Saved — ${rec.uid} issued with receipt & QR`);
+  return false;
+}
+
+/* ---------- dashboard ---------- */
+function renderAll(){ renderGoal(); renderStats(); renderTable(); }
+
+function renderGoal(){
+  const total = investments.reduce((s,i)=>s+i.amount,0);
+  const shares = investments.reduce((s,i)=>s+i.shares,0);
+  const entres = investments.filter(i=>i.entrepreneur).length;
+  const pct = Math.min(100, total/TARGET_AMOUNT*100);
+  document.getElementById('g-raised').textContent = fmt(total);
+  document.getElementById('g-bar').style.width = pct.toFixed(1)+'%';
+  document.getElementById('g-entre').textContent = `${entres} / ${TARGET_ENTREPRENEURS} entrepreneur slots filled`;
+  document.getElementById('g-founding').textContent =
+    `Founding phase: ${fmt(Math.min(total,FOUNDING_AMOUNT))} of ${fmt(FOUNDING_AMOUNT)}` + (total>=FOUNDING_AMOUNT ? ' ✓ complete' : '');
+  document.getElementById('g-shares').textContent = `${shares.toLocaleString('en-IN')} / ${TARGET_SHARES.toLocaleString('en-IN')} shares subscribed`;
+  document.getElementById('g-pct').textContent = (pct<0.1&&total>0 ? pct.toFixed(3) : pct.toFixed(1))+'% of target';
+}
+
+function renderStats(){
+  const total = investments.reduce((s,i)=>s+i.amount,0);
+  const conf = investments.filter(i=>i.status==='confirmed');
+  const pend = investments.filter(i=>i.status==='pending');
+  const confSum = conf.reduce((s,i)=>s+i.amount,0);
+  const incentive = investments.reduce((s,i)=>s+(i.incentive||0),0);
+  document.getElementById('stat-total').textContent = fmt(total);
+  document.getElementById('stat-count').textContent = investments.length+' subscription'+(investments.length===1?'':'s');
+  document.getElementById('stat-confirmed').textContent = fmt(confSum);
+  document.getElementById('stat-confirmed-count').textContent = conf.length+' confirmed';
+  document.getElementById('stat-pending').textContent = fmt(total-confSum);
+  document.getElementById('stat-pending-count').textContent = pend.length+' pending';
+  document.getElementById('stat-incentive').textContent = fmt(incentive);
+}
+
+function renderTable(){
+  const q = (document.getElementById('search').value||'').toLowerCase();
+  const fc = document.getElementById('filter-cat').value;
+  const fs = document.getElementById('filter-status').value;
+  const rows = investments.filter(i =>
+    (!q || i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q) || i.uid.toLowerCase().includes(q)) &&
+    (!fc || i.category===fc) && (!fs || i.status===fs));
+  const tbody = document.getElementById('tbody');
+  document.getElementById('empty').style.display = investments.length ? 'none':'block';
+  tbody.innerHTML = rows.map(i=>`
+    <tr>
+      <td class="mono">${i.uid}${i.entrepreneur?'<br><span class="cat director" style="font-size:10px">Entrepreneur</span>':''}</td>
+      <td><strong>${esc(i.name)}</strong>${i.contact?`<br><span style="color:var(--ink-soft);font-size:12.5px">${esc(i.contact)}</span>`:''}</td>
+      <td><span class="cat ${catClass(i.category)}">${i.category.replace(' Shareholder','')}</span></td>
+      <td class="mono">${i.shares}</td>
+      <td class="mono">${fmt(i.amount)}</td>
+      <td style="font-size:12.5px">${i.date}<br><span style="color:var(--ink-soft)">${esc(i.method||'')}</span></td>
+      <td><span class="status ${i.status}"><span class="dot"></span>${i.status==='confirmed'?'Confirmed':'Pending'}</span></td>
+      <td>
+        <div class="row-actions">
+          <button class="btn sm" onclick="openReceiptById('${i.id}')">Receipt</button>
+          <button class="btn sm" onclick="openQRById('${i.id}')">QR</button>
+          <button class="btn sm danger" onclick="removeInvestment('${i.id}')" aria-label="Delete ${esc(i.uid)}">✕</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+async function removeInvestment(id){
+  const rec = investments.find(i=>i.id===id);
+  if(!rec) return;
+  if(!confirm(`Delete ${rec.uid} (${rec.name}, ${fmt(rec.amount)})? This cannot be undone.`)) return;
+  investments = investments.filter(i=>i.id!==id);
+  await persist(); renderAll(); toast('Record deleted');
+}
+
+/* ---------- QR ---------- */
+function openQRById(id){ const r=investments.find(i=>i.id===id); if(r){ closeOverlay('receipt-overlay'); openQR(r);} }
+function openQR(rec){
+  currentQR = rec;
+  document.getElementById('qr-sub').textContent = `${rec.uid} · ${rec.name} · ${rec.shares} share${rec.shares>1?'s':''} · ${fmt(rec.amount)}`;
+  document.getElementById('qr-code-text').textContent = rec.code;
+  const box = document.getElementById('qrbox');
+  box.innerHTML = '';
+  new QRCode(box, {
+    text: `NEOBEE HOSPITAL PLC | VERIFY | CODE:${rec.code} | UID:${rec.uid} | SHARES:${rec.shares} | AMOUNT:${rec.amount} BDT`,
+    width: 176, height: 176,
+    colorDark: '#201D12', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+  document.getElementById('qr-overlay').classList.add('open');
+}
+function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
+['qr-overlay','receipt-overlay'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',e=>{ if(e.target.id===id) closeOverlay(id); });
+});
+
+function downloadQR(){
+  const img = document.querySelector('#qrbox img') || document.querySelector('#qrbox canvas');
+  if(!img || !currentQR) return;
+  const url = img.tagName==='IMG' ? img.src : img.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url; a.download = `neobee-${currentQR.uid}-${currentQR.code}.png`; a.click();
+}
+function copyCode(){
+  if(!currentQR) return;
+  navigator.clipboard.writeText(currentQR.code)
+    .then(()=>toast('Code copied'))
+    .catch(()=>toast('Copy failed — code: '+currentQR.code));
+}
+
+/* ---------- receipt ---------- */
+function openReceiptById(id){ const r=investments.find(i=>i.id===id); if(r){ closeOverlay('qr-overlay'); openReceipt(r);} }
+function openReceipt(rec){
+  currentReceipt = rec;
+  const body = document.getElementById('receipt-body');
+  body.innerHTML = `
+    <div class="r-head">
+      <svg class="hex-mark" viewBox="0 0 38 42" aria-hidden="true">
+        <polygon points="19,1 36,11 36,31 19,41 2,31 2,11" fill="#E9A215"/>
+        <polygon points="19,8 30,14.5 30,27.5 19,34 8,27.5 8,14.5" fill="#FDFCF7"/>
+        <text x="19" y="26" text-anchor="middle" font-family="Archivo,sans-serif" font-weight="800" font-size="13" fill="#A96F05">N</text>
+      </svg>
+      <div class="t">Neobee Hospital PLC<small>Digital money receipt</small></div>
+      <div class="rn">Receipt / UID<b>${rec.uid}</b>${rec.date}</div>
+    </div>
+    <div class="r-body">
+      <div class="r-rows">
+        <div class="r-row"><span class="k">Received from</span><span class="v">${esc(rec.name)}</span></div>
+        ${rec.contact?`<div class="r-row"><span class="k">Contact</span><span class="v mono">${esc(rec.contact)}</span></div>`:''}
+        ${rec.nid?`<div class="r-row"><span class="k">NID / passport</span><span class="v mono">${esc(rec.nid)}</span></div>`:''}
+        <div class="r-row"><span class="k">Category</span><span class="v">${rec.category}${rec.entrepreneur?' · Founding entrepreneur':''}</span></div>
+        <div class="r-row"><span class="k">Shares subscribed</span><span class="v mono">${rec.shares} × ${fmt(SHARE_PRICE)}</span></div>
+        ${rec.incentive?`<div class="r-row"><span class="k">Share incentive (bonus)</span><span class="v mono">${fmt(rec.incentive)}</span></div>`:''}
+        <div class="r-row"><span class="k">Deposit method</span><span class="v">${esc(rec.method||'—')}</span></div>
+        ${rec.ref?`<div class="r-row"><span class="k">Reference</span><span class="v mono">${esc(rec.ref)}</span></div>`:''}
+        <div class="r-row"><span class="k">Verification code</span><span class="v mono">${rec.code}</span></div>
+        <div class="r-row"><span class="k">Status</span><span class="v">${rec.status==='confirmed'?'Confirmed by investor':'Pending investor confirmation'}</span></div>
+        <div class="r-amount"><span class="k">Amount received</span><span class="v">${fmt(rec.amount)}</span></div>
+        <div class="r-words">${amountInWords(rec.amount)} taka only</div>
+      </div>
+      <div class="r-qr-col">
+        <div id="r-qr"></div>
+        <div class="cap">Scan to verify this receipt on the Neobee portal — code ${rec.code}</div>
+      </div>
+    </div>
+    <div class="r-foot">
+      <span>Deposits are received only in the NEOBEE bank account of the institution.</span>
+      <span>Digital services by NeoTech</span>
+    </div>`;
+  new QRCode(document.getElementById('r-qr'), {
+    text: `NEOBEE HOSPITAL PLC | VERIFY | CODE:${rec.code} | UID:${rec.uid} | SHARES:${rec.shares} | AMOUNT:${rec.amount} BDT`,
+    width: 118, height: 118,
+    colorDark: '#201D12', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+  document.getElementById('receipt-overlay').classList.add('open');
+}
+
+function amountInWords(n){
+  /* Indian/Bangladeshi numbering: crore, lakh, thousand */
+  if(n===0) return 'zero';
+  const ones=['','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+  const tens=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  const two=x=> x<20?ones[x]:tens[Math.floor(x/10)]+(x%10?' '+ones[x%10]:'');
+  const three=x=> (x>=100?ones[Math.floor(x/100)]+' hundred'+(x%100?' ':''):'')+(x%100?two(x%100):'');
+  let out=[];
+  const crore=Math.floor(n/10000000); n%=10000000;
+  const lakh=Math.floor(n/100000); n%=100000;
+  const thou=Math.floor(n/1000); n%=1000;
+  if(crore) out.push(two(crore)+' crore');
+  if(lakh) out.push(two(lakh)+' lakh');
+  if(thou) out.push(two(thou)+' thousand');
+  if(n) out.push(three(n));
+  const s=out.join(' ');
+  return s.charAt(0).toUpperCase()+s.slice(1);
+}
+
+/* ---------- verify ---------- */
+function extractCode(raw){
+  const s=String(raw).toUpperCase();
+  const m = s.match(/NB-[A-Z0-9]{6}/); if(m) return {code:m[0]};
+  const u = s.match(/NEO-\d{4}/); if(u) return {uid:u[0]};
+  return {code:s.trim()};
+}
+
+function lookupCode(){
+  const raw = document.getElementById('v-code').value;
+  const out = document.getElementById('v-result');
+  if(!raw.trim()){ out.innerHTML=''; return; }
+  const k = extractCode(raw);
+  const rec = investments.find(i=> k.code ? i.code===k.code : i.uid===k.uid);
+  if(!rec){
+    out.innerHTML = `<div class="notice err">No record found for <span class="mono">${esc(k.code||k.uid)}</span>.
+      Check the code on your receipt or QR slip, or contact the finance office (spokesperson: Mizanur Rahman).</div>`;
+    return;
+  }
+  out.innerHTML = `
+    <div class="v-card">
+      <div class="badge-row">
+        <h3>${esc(rec.name)}</h3>
+        <span class="cat ${catClass(rec.category)}">${rec.category}</span>
+        <span class="status ${rec.status}"><span class="dot"></span>${rec.status==='confirmed'?'Confirmed':'Pending confirmation'}</span>
+      </div>
+      <dl class="v-detail">
+        <dt>Unique ID</dt><dd class="mono">${rec.uid}</dd>
+        <dt>Verification code</dt><dd class="mono">${rec.code}</dd>
+        <dt>Shares</dt><dd class="mono">${rec.shares} × ${fmt(SHARE_PRICE)}</dd>
+        <dt>Amount deposited</dt><dd class="mono">${fmt(rec.amount)}</dd>
+        ${rec.incentive?`<dt>Share incentive</dt><dd class="mono">${fmt(rec.incentive)} (bonus shares)</dd>`:''}
+        <dt>Deposit date</dt><dd>${rec.date}</dd>
+        <dt>Method</dt><dd>${esc(rec.method||'—')}</dd>
+        ${rec.ref?`<dt>Reference</dt><dd class="mono">${esc(rec.ref)}</dd>`:''}
+        ${rec.confirmedAt?`<dt>Confirmed on</dt><dd>${new Date(rec.confirmedAt).toLocaleString()}</dd>`:''}
+      </dl>
+      ${rec.status==='pending'
+        ? `<button class="btn primary" onclick="confirmInvestment('${rec.id}')">Yes, my investment details are correct — confirm</button>
+           <div class="notice warn">If any detail above is wrong, do not confirm. Contact the finance office before confirming.</div>`
+        : `<div class="notice ok">This shareholding has been confirmed by the investor. Thank you for investing in Neobee Hospital PLC.</div>`}
+      <div class="actions no-print" style="justify-content:flex-start;margin-top:14px;display:flex;gap:8px">
+        <button class="btn sm" onclick="openReceiptById('${rec.id}')">View digital receipt</button>
+      </div>
+    </div>`;
+}
+
+async function confirmInvestment(id){
+  const rec = investments.find(i=>i.id===id);
+  if(!rec || rec.status==='confirmed') return;
+  rec.status='confirmed';
+  rec.confirmedAt = new Date().toISOString();
+  await persist();
+  renderAll();
+  document.getElementById('v-code').value = rec.code;
+  lookupCode();
+  toast('Investment confirmed — thank you');
+}
+
+/* ---------- helpers ---------- */
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+recalc();
+loadData();
+</script>
+</body>
+</html>

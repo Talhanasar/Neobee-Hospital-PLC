@@ -1,27 +1,55 @@
 {
-  "name": "neobee-web-app-temp",
+  "name": "neobee-web-app",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint && node scripts/check-i18n.mjs && node scripts/check-env.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "check:env": "node scripts/check-env.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "node scripts/test-integration.mjs",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:seed": "tsx --env-file=.env prisma/seed.ts && tsx --env-file=.env prisma/seed-demo.ts",
+    "db:studio": "prisma studio",
+    "db:deploy": "node scripts/migrate.mjs"
   },
   "dependencies": {
+    "@playwright/test": "^1.62.1",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.3",
     "next": "16.3.1",
+    "next-intl": "4.13.7",
+    "pdfkit": "^0.19.1",
+    "pg": "^8.23.0",
+    "qrcode": "^1.5.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pdfkit": "^0.17.6",
+    "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
+    "playwright": "^1.62.1",
+    "prisma": "^7.9.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.23.12",
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.1.11"
   },
   "packageManager": "pnpm@10.13.1"
 }

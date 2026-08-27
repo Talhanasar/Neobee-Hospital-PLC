@@ -39,3 +39,37 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ephemeral postgres for integration tests
+.ephemeral-pg/
+
+# playwright mcp session artifacts (snapshots, screenshots, console logs)
+.playwright-mcp/
+
+.env
+.env.local
+.env*.local
+.env.production
+lib/generated
+!.env.example
+
+# dev server log
+dev-server.log
+
+# screenshots and visual qa artifacts
+/screenshot-*.png
+visual-qa.spec.ts
+take-screenshots.js
+
+# root-anchored temp files
+/a.txt
+/b.txt
+/c.txt
+
+# test artifacts
+/test-results/
+/bn_login_snapshot.md
+/login_snapshot.md
+
+# temp build log artifacts
+/neobee-build.log
