@@ -1,0 +1,396 @@
+// Demo seed — creates the two demo auth users + DB rows used by the
+// one-click demo-login affordance. Idempotent: safe to re-run.
+//
+// Run via `pnpm db:seed` (chained after prisma/seed.ts) or standalone:
+//   npx tsx prisma/seed-demo.ts
+//
+// Respects the same SEED_ALLOW production gate as seed.ts.
+
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../lib/generated/prisma/client';
+import type { TransactionClient } from '../lib/generated/prisma/internal/prismaNamespace';
+// Relative import is deliberate here because tsx does not resolve the @/ alias in this standalone script.
+import {
+  DEFAULT_SETTINGS,
+  calculateAmount,
+  deriveCategory,
+} from '../lib/money';
+import { DEMO_INVESTOR, DEMO_ADMIN } from '../lib/demo-users';
+
+const isProduction = process.env.NODE_ENV === 'production';
+const allowSeed = process.env.SEED_ALLOW === 'true';
+
+if (isProduction && !allowSeed) {
+  console.error('Refusing to seed demo data in production. Set SEED_ALLOW=true only for explicit local approval.');
+  process.exit(1);
+}
+
+// Fixed UIDs far from the real sequence range (seed.ts consumes nextval starting at 1).
+const DEMO_INVESTOR_UID = 'NEO-9001';
+const DEMO_INVESTOR_UID_SEQUENCE = 9001;
+const DEMO_PENDING_UID = 'NEO-9002';
+const DEMO_PENDING_UID_SEQUENCE = 9002;
+
+const DEMO_CONFIRMED_CODE = 'NB-DEMOA';
+const DEMO_PENDING_CODE = 'NB-DEMOB';
+
+async function ensureAuthUser(
+  admin: Awaited<ReturnType<typeof import('../lib/supabase/admin').createAdminClient>>,
+  email: string,
+  password: string,
+  name: string,
+  phone: string,
+): Promise<string | null> {
+  // Email-based reuse detection: supabase-js v2.112.3 admin API has no getUserByEmail,
+  // so reuse is detected by scanning listUsers for a matching email. The project has
+  // only a handful of users, so a single page at perPage:200 is sufficient.
+  const findExistingByEmail = async (): Promise<{ id: string } | null> => {
+    const { data: list, error: listError } = await admin.auth.admin.listUsers({
+      page: 1,
+      perPage: 200,
+    });
+    if (listError) {
+      console.warn(`Could not list users to find existing demo user (${email}): ${listError.message}`);
+      return null;
+    }
+    return list.users.find((u) => u.email?.toLowerCase() === email.toLowerCase()) ?? null;
+  };
+
+  // Try create WITH phone first (so the profile carries it if the project later enables
+  // phone). Some projects reject phone on create when the phone provider is disabled —
+  // on that specific error, retry with email-only attributes.
+  const tryCreate = async (withPhone: boolean) => {
+    const attrs: Record<string, unknown> = {
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name, phone },
+    };
+    if (withPhone) {
+      attrs.phone = phone;
+      attrs.phone_confirm = true;
+    }
+    return admin.auth.admin.createUser(attrs as Parameters<typeof admin.auth.admin.createUser>[0]);
+  };
+
+  // 1) Attempt create WITH phone.
+  let createResult = await tryCreate(true);
+  let createError = createResult.error;
+
+  // 2) If the phone fields were rejected, retry WITHOUT phone (email-only).
+  if (createError && /phone|provider|disabled/i.test(createError.message)) {
+    console.warn(`createUser with phone rejected for ${email} (likely phone provider disabled); retrying email-only: ${createError.message}`);
+    createResult = await tryCreate(false);
+    createError = createResult.error;
+  }
+
+  if (createError) {
+    // 422 / "already exists" → reuse the existing user by email.
+    if (createError.status === 422 || /already.*registered|already.*exists|user.*already/i.test(createError.message)) {
+      const existing = await findExistingByEmail();
+      if (existing) {
+        // Reset password so stale passwords can't break the demo after a re-run.
+        const { error: updateError } = await admin.auth.admin.updateUserById(existing.id, { password });
+        if (updateError) {
+          console.warn(`Found existing user for ${email} but failed to reset password: ${updateError.message}`);
+        }
+        console.log(`Reusing existing Supabase auth user for ${email} (${name}).`);
+        return existing.id;
+      }
+      console.warn(`Existing user reported for ${email} but not found in listUsers.`);
+      return null;
+    }
+    console.warn(`Failed to create Supabase auth user for ${email} (${name}): ${createError.message}`);
+    return null;
+  }
+
+  if (createResult.data && createResult.data.user) {
+    console.log(`Created Supabase auth user for ${email} (${name}).`);
+    return createResult.data.user.id;
+  }
+
+  // Never report success without a returned user object.
+  console.warn(`SEED FAILURE: could not create auth user for ${email}: no user object returned.`);
+  return null;
+}
+
+async function main() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('Missing required environment variable: DATABASE_URL');
+  }
+
+  // --- Supabase auth users (optional: skip gracefully if no service key) ---
+  let investorAuthUserId: string | null = null;
+  let adminAuthUserId: string | null = null;
+  let adminClient: Awaited<ReturnType<typeof import('../lib/supabase/admin').createAdminClient>> | null = null;
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    console.warn(
+      'SUPABASE_SERVICE_ROLE_KEY is not set — skipping Supabase auth-user creation. ' +
+        'Demo login will not work until re-run with the key. DB rows will still be created.',
+    );
+  } else {
+    const { createAdminClient } = await import('../lib/supabase/admin');
+    adminClient = await createAdminClient();
+    investorAuthUserId = await ensureAuthUser(adminClient, DEMO_INVESTOR.email, DEMO_INVESTOR.password, DEMO_INVESTOR.name, DEMO_INVESTOR.phone);
+    adminAuthUserId = await ensureAuthUser(adminClient, DEMO_ADMIN.email, DEMO_ADMIN.password, DEMO_ADMIN.name, DEMO_ADMIN.phone);
+  }
+
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
+
+  try {
+    await prisma.$transaction(async (tx: TransactionClient) => {
+      const sharePrice = DEFAULT_SETTINGS.SHARE_PRICE;
+      const incentivePerShare = DEFAULT_SETTINGS.INCENTIVE_PER_SHARE;
+
+      // --- Settings (reuse the same keys seed.ts upserts; do not duplicate) ---
+      const settingRows = [
+        ['SHARE_PRICE', sharePrice],
+        ['INCENTIVE_PER_SHARE', incentivePerShare],
+      ] as const;
+      for (const [key, value] of settingRows) {
+        await tx.setting.upsert({
+          where: { key },
+          update: { value: BigInt(value) },
+          create: { key, value: BigInt(value) },
+        });
+      }
+
+      // --- Demo admin staff row (upsert by the stable unique email so a stale
+      // authUserId on the existing row never blocks the overwrite; authUserId is
+      // always overwritten with the real Supabase user id when known) ---
+      const demoAdmin = await tx.staff.upsert({
+        where: { email: 'demo-admin@neobee.test' },
+        update: {
+          name: DEMO_ADMIN.name,
+          email: 'demo-admin@neobee.test',
+          role: 'ADMIN',
+          isActive: true,
+          ...(adminAuthUserId ? { authUserId: adminAuthUserId } : {}),
+        },
+        create: {
+          authUserId: adminAuthUserId ?? 'demo-admin-authuser-pending',
+          name: DEMO_ADMIN.name,
+          email: 'demo-admin@neobee.test',
+          role: 'ADMIN',
+          isActive: true,
+        },
+      });
+
+      // If the real auth user id arrived late, link it now.
+      if (adminAuthUserId && demoAdmin.authUserId !== adminAuthUserId) {
+        await tx.staff.update({
+          where: { id: demoAdmin.id },
+          data: { authUserId: adminAuthUserId },
+        });
+      }
+
+      // --- Demo investor row (upsert by the stable unique phone; authUserId is
+      // always overwritten with the real Supabase user id so stale/non-existent
+      // ids on the existing row are corrected on every re-run) ---
+      const demoInvestor = await tx.investor.upsert({
+        where: { phone: DEMO_INVESTOR.phone },
+        update: {
+          name: DEMO_INVESTOR.name,
+          email: 'demo-investor@neobee.test',
+          ...(investorAuthUserId ? { authUserId: investorAuthUserId } : {}),
+        },
+        create: {
+          phone: DEMO_INVESTOR.phone,
+          name: DEMO_INVESTOR.name,
+          email: 'demo-investor@neobee.test',
+          nationalIdNumber: 'DEMO-NID-0001',
+          authUserId: investorAuthUserId ?? 'demo-investor-authuser-pending',
+        },
+      });
+
+      // Link the investor's authUserId if it was pending and the real id arrived.
+      if (investorAuthUserId && demoInvestor.authUserId !== investorAuthUserId) {
+        await tx.investor.update({
+          where: { id: demoInvestor.id },
+          data: { authUserId: investorAuthUserId },
+        });
+      }
+
+      // --- Two demo investments (idempotent by uid) ---
+      const recentDate = new Date('2026-08-20T10:00:00.000Z');
+
+      // (a) CONFIRMED: 2 shares → SHAREHOLDER, 400000, confirmed.
+      const confirmedShares = 2;
+      const confirmedCategory = deriveCategory(confirmedShares);
+      const confirmedAmount = calculateAmount(confirmedShares, sharePrice);
+      const confirmedInvestment = await tx.investment.upsert({
+        where: { uid: DEMO_INVESTOR_UID },
+        update: {
+          investorId: demoInvestor.id,
+          shares: confirmedShares,
+          category: confirmedCategory,
+          isEntrepreneur: false,
+          incentiveAmount: 0,
+          sharePrice,
+          incentivePerShare,
+          amount: confirmedAmount,
+          depositMethod: 'BANK_TRANSFER',
+          depositRef: 'DEMO-001',
+          depositDate: recentDate,
+          status: 'CONFIRMED',
+          confirmedAt: new Date('2026-08-20T12:00:00.000Z'),
+          confirmedByInvestorId: demoInvestor.id,
+          notes: 'Demo confirmed investment',
+          recordedByStaffId: demoAdmin.id,
+        },
+        create: {
+          investorId: demoInvestor.id,
+          uid: DEMO_INVESTOR_UID,
+          uidSequence: DEMO_INVESTOR_UID_SEQUENCE,
+          code: DEMO_CONFIRMED_CODE,
+          shares: confirmedShares,
+          category: confirmedCategory,
+          isEntrepreneur: false,
+          incentiveAmount: 0,
+          sharePrice,
+          incentivePerShare,
+          amount: confirmedAmount,
+          depositMethod: 'BANK_TRANSFER',
+          depositRef: 'DEMO-001',
+          depositDate: recentDate,
+          status: 'CONFIRMED',
+          confirmedAt: new Date('2026-08-20T12:00:00.000Z'),
+          confirmedByInvestorId: demoInvestor.id,
+          notes: 'Demo confirmed investment',
+          recordedByStaffId: demoAdmin.id,
+        },
+      });
+
+      // Ledger row for the confirmed investment (match seed.ts pattern: DEPOSIT row, admin-recorded).
+      const existingConfirmedTx = await tx.transaction.findFirst({
+        where: { investmentId: confirmedInvestment.id, type: 'DEPOSIT' },
+        select: { id: true },
+      });
+      if (!existingConfirmedTx) {
+        await tx.transaction.create({
+          data: {
+            investmentId: confirmedInvestment.id,
+            amount: confirmedAmount,
+            type: 'DEPOSIT',
+            recordedByStaffId: demoAdmin.id,
+            note: 'Demo seeded deposit ledger row',
+          },
+        });
+      }
+
+      // (b) PENDING: 5 shares → PREMIUM, 1000000, not confirmed.
+      const pendingShares = 5;
+      const pendingCategory = deriveCategory(pendingShares);
+      const pendingAmount = calculateAmount(pendingShares, sharePrice);
+      const pendingInvestment = await tx.investment.upsert({
+        where: { uid: DEMO_PENDING_UID },
+        update: {
+          investorId: demoInvestor.id,
+          shares: pendingShares,
+          category: pendingCategory,
+          isEntrepreneur: false,
+          incentiveAmount: 0,
+          sharePrice,
+          incentivePerShare,
+          amount: pendingAmount,
+          depositMethod: 'BANK_TRANSFER',
+          depositRef: 'DEMO-002',
+          depositDate: recentDate,
+          status: 'PENDING',
+          confirmedAt: null,
+          confirmedByInvestorId: null,
+          notes: 'Demo pending investment',
+          recordedByStaffId: demoAdmin.id,
+        },
+        create: {
+          investorId: demoInvestor.id,
+          uid: DEMO_PENDING_UID,
+          uidSequence: DEMO_PENDING_UID_SEQUENCE,
+          code: DEMO_PENDING_CODE,
+          shares: pendingShares,
+          category: pendingCategory,
+          isEntrepreneur: false,
+          incentiveAmount: 0,
+          sharePrice,
+          incentivePerShare,
+          amount: pendingAmount,
+          depositMethod: 'BANK_TRANSFER',
+          depositRef: 'DEMO-002',
+          depositDate: recentDate,
+          status: 'PENDING',
+          confirmedAt: null,
+          confirmedByInvestorId: null,
+          notes: 'Demo pending investment',
+          recordedByStaffId: demoAdmin.id,
+        },
+      });
+
+      const existingPendingTx = await tx.transaction.findFirst({
+        where: { investmentId: pendingInvestment.id, type: 'DEPOSIT' },
+        select: { id: true },
+      });
+      if (!existingPendingTx) {
+        await tx.transaction.create({
+          data: {
+            investmentId: pendingInvestment.id,
+            amount: pendingAmount,
+            type: 'DEPOSIT',
+            recordedByStaffId: demoAdmin.id,
+            note: 'Demo seeded deposit ledger row',
+          },
+        });
+      }
+
+      console.log(
+        'Demo seed complete: 1 admin staff, 1 investor, 2 investments (1 confirmed, 1 pending), 2 ledger rows. ' +
+          (investorAuthUserId ? 'Auth users created.' : 'Auth users SKIPPED (no service key).'),
+      );
+    });
+
+    // --- Final verification: re-confirm BOTH auth users exist (by id) and print
+    // a final line listing exactly which accounts exist, by email (never ids).
+    // If either is missing → exit 1 so CI surfaces the failure. ---
+    if (adminClient && serviceRoleKey) {
+      const verify = async (id: string | null, email: string, label: string): Promise<boolean> => {
+        if (!id) return false;
+        const { data, error } = await adminClient!.auth.admin.getUserById(id);
+        if (error || !data.user) {
+          console.error(`SEED FAILURE: verified auth user for ${email} (${label}) is missing: ${error ? error.message : 'no user'}`);
+          return false;
+        }
+        return true;
+      };
+
+      const investorOk = await verify(investorAuthUserId, DEMO_INVESTOR.email, 'investor');
+      const adminOk = await verify(adminAuthUserId, DEMO_ADMIN.email, 'admin');
+
+      const existingEmails: string[] = [];
+      const { data: list, error: listError } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 200 });
+      if (listError) {
+        console.error('SEED FAILURE: could not list users for final verification:', listError.message);
+      } else {
+        for (const u of list.users) {
+          if (u.email) existingEmails.push(u.email);
+        }
+      }
+
+      console.log(`Verified auth users: investor=${investorOk ? 'present' : 'MISSING'} (${DEMO_INVESTOR.email}), admin=${adminOk ? 'present' : 'MISSING'} (${DEMO_ADMIN.email}).`);
+      console.log(`Auth accounts present: ${existingEmails.length ? existingEmails.join(', ') : 'none'}`);
+
+      if (!investorOk || !adminOk) {
+        process.exit(1);
+      }
+    }
+  } catch (error) {
+    console.error('Demo seed failed:', error);
+    process.exitCode = 1;
+    throw error;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+void main();
