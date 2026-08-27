@@ -1,26 +1,125 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Palette contrast rules (see spec):
+   1. ink-on-honey — filled honey accents always carry text-ink (AA 4.5:1+).
+   2. honey is fill/decoration only — never a text colour.
+   3. honey-deep / amber text only at ≥24px or ≥19px bold (smaller → ink / ink-soft).
+   Focus rings use honey-deep (UI elements need only 3:1). */
+@theme {
+  --color-ink: #201D12;
+  --color-ink-soft: #5C5744;
+  --color-paper: #FDFCF7;
+  --color-panel: #FFFFFF;
+  --color-line: #E9E4D4;
+
+  --color-honey: #E9A215;
+  --color-honey-deep: #A96F05;
+  --color-honey-soft: #FBF0D6;
+
+  --color-green: #2F7D5B;
+  --color-green-soft: #E4F1EA;
+  --color-amber: #B26E00;
+  --color-amber-soft: #FBEED3;
+  --color-violet: #5B4B8A;
+  --color-violet-soft: #ECE7F7;
+  --color-blue: #1E5F8E;
+  --color-blue-soft: #E2EEF6;
+
+  --radius-card: 14px;
+  --breakpoint-md: 760px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-display: var(--font-archivo), var(--font-noto-bengali), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-inter), var(--font-noto-bengali), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+}
+
+h1 {
+  letter-spacing: -0.02em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-honey-deep);
+  outline-offset: 2px;
+}
+
+:lang(bn) h1,
+:lang(bn) h2,
+:lang(bn) h3 {
+  line-height: 1.35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .no-print,
+  header,
+  footer {
+    display: none !important;
+  }
+
+  .print-static {
+    position: static !important;
+    background: none !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .print-static * {
+    box-shadow: none !important;
+  }
+
+  .print-static,
+  .print-static * {
+    border-color: var(--color-line) !important;
+  }
+
+  .print-static .border-0,
+  .print-static .border-none {
+    border: 0 !important;
+  }
+}
+
+.hex {
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.shell {
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: 20px;
 }
