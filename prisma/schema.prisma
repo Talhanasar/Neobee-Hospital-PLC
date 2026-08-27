@@ -1,0 +1,225 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum InvestmentCategory {
+  SHAREHOLDER
+  PREMIUM
+  DIRECTOR
+}
+
+enum InvestmentStatus {
+  PENDING
+  CONFIRMED
+}
+
+enum DepositMethod {
+  BANK_DEPOSIT
+  BANK_TRANSFER
+  CHEQUE
+  MOBILE_BANKING
+}
+
+enum TransactionType {
+  DEPOSIT
+  REFUND
+  CORRECTION
+  DISTRIBUTION
+}
+
+enum InstallmentStatus {
+  SCHEDULED
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum StaffRole {
+  STAFF
+  ADMIN
+}
+
+enum ActorType {
+  STAFF
+  INVESTOR
+  PUBLIC
+  SYSTEM
+}
+
+enum InvestmentRequestStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model Staff {
+  id              String    @id @default(uuid())
+  authUserId      String    @unique // Supabase's internal auth.users schema is not portable across the planned migration to self-hosted Postgres.
+  name            String
+  email           String?   @unique
+  role            StaffRole @default(STAFF)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  investments     Investment[]
+  transactions    Transaction[]
+  settings        Setting[]
+  reviewedRequests InvestmentRequest[] @relation("ReviewedRequests")
+}
+
+model Investor {
+  id                String   @id @default(uuid())
+  authUserId        String?  @unique // Deliberate: staff register deposits for walk-in investors who have no account yet, so an Investor row can exist before any Supabase Auth user; it is linked on first phone/OTP login by matching phone.
+  phone             String   @unique
+  name              String
+  email             String?
+  nationalIdNumber  String?
+  nationalIdFileKey String? // signed URLs are minted on demand and never persisted.
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  investments       Investment[]
+  requests          InvestmentRequest[]
+}
+
+model Investment {
+  id                    String             @id @default(uuid())
+  investorId            String
+  investor              Investor           @relation(fields: [investorId], references: [id], onDelete: Restrict)
+  uid                   String             @unique
+  uidSequence           Int                @unique // sourced via nextval('investment_uid_seq') inside the registration transaction, never from a row count, because the prototype's investments.length + 1 collides under concurrency.
+  code                  String             @unique
+  shares                Int
+  category              InvestmentCategory
+  isEntrepreneur        Boolean            @default(false)
+  incentiveAmount       Int                @default(0)
+  sharePrice            Int // the share price is admin-editable at runtime, so each investment records the price in effect at registration; historical amounts are computed from these snapshots, never from the live setting, because recomputing against today's price would silently rewrite financial history.
+  incentivePerShare     Int // the share price is admin-editable at runtime, so each investment records the price in effect at registration; historical amounts are computed from these snapshots, never from the live setting, because recomputing against today's price would silently rewrite financial history.
+  amount                Int // not the source of truth once transactions exist; recomputed in the same DB transaction that writes a ledger row; DISTRIBUTION rows are excluded because a profit payout does not reduce principal.
+  depositMethod         DepositMethod
+  depositRef            String?
+  depositDate           DateTime
+  depositSlipFileKey    String? // signed URLs are minted on demand and never persisted.
+  status                InvestmentStatus   @default(PENDING)
+  confirmedAt           DateTime?
+  confirmedByInvestorId String?
+  notes                 String?            @db.Text
+  recordedByStaffId     String
+  recordedByStaff       Staff              @relation(fields: [recordedByStaffId], references: [id], onDelete: Restrict)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  transactions          Transaction[]
+  installmentSchedules  InstallmentSchedule[]
+  request               InvestmentRequest?
+
+  @@index([investorId])
+  @@index([status])
+  @@index([category])
+  @@index([depositDate])
+  @@index([createdAt])
+  @@index([recordedByStaffId])
+  @@index([status, category])
+}
+
+model InvestmentRequest {
+  id                String                   @id @default(uuid())
+  investorId        String
+  investor          Investor                 @relation(fields: [investorId], references: [id], onDelete: Restrict)
+  shares            Int
+  entrepreneurRequested Boolean             @default(false)
+  sharePrice        Int                      // snapshot at submission
+  incentivePerShare Int                      // snapshot at submission
+  amount            Int                      // snapshot: shares * sharePrice
+  depositMethod     DepositMethod
+  depositRef        String?
+  depositDate       DateTime
+  note              String?                  @db.Text
+  status            InvestmentRequestStatus  @default(SUBMITTED)
+  reviewedByStaffId String?
+  reviewedByStaff   Staff?                   @relation("ReviewedRequests", fields: [reviewedByStaffId], references: [id], onDelete: SetNull)
+  reviewedAt        DateTime?
+  reviewNote        String?                  @db.Text
+  investmentId      String?                  @unique
+  investment        Investment?              @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@index([investorId])
+  @@index([status, createdAt])
+}
+
+model Transaction {
+  id                    String               @id @default(uuid())
+  investmentId          String
+  investment            Investment           @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+  amount                Int // SIGNED: DEPOSIT positive; REFUND negative; CORRECTION either sign; DISTRIBUTION negative and excluded from the principal cache.
+  type                  TransactionType
+  relatedTransactionId  String?
+  relatedTransaction    Transaction?         @relation("TransactionCorrections", fields: [relatedTransactionId], references: [id])
+  corrections           Transaction[]        @relation("TransactionCorrections")
+  installmentScheduleId String?
+  installmentSchedule   InstallmentSchedule? @relation(fields: [installmentScheduleId], references: [id])
+  recordedByStaffId     String
+  recordedByStaff       Staff                @relation(fields: [recordedByStaffId], references: [id], onDelete: Restrict)
+  note                  String?
+  createdAt             DateTime             @default(now())
+
+  @@index([investmentId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([investmentId, type])
+}
+
+model InstallmentSchedule {
+  id           String            @id @default(uuid())
+  investmentId String
+  investment   Investment        @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+  dueDate      DateTime
+  amount       Int
+  status       InstallmentStatus @default(SCHEDULED)
+  note         String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  transactions Transaction[]
+
+  @@index([investmentId])
+  @@index([status, dueDate])
+}
+
+model AuditLog {
+  id         String    @id @default(uuid())
+  actorType  ActorType
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json? // never store PII, secrets, full request bodies, or NID numbers here.
+  createdAt  DateTime  @default(now())
+
+  @@index([targetType, targetId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([ipAddress, action, createdAt]) // lets the public verify endpoint rate-limit by counting recent lookups per IP without a separate table.
+}
+
+model Setting {
+  key              String   @id
+  value            BigInt // see the money-type rule; TARGET_AMOUNT overflows Int.
+  updatedByStaffId String?
+  updatedByStaff   Staff?   @relation(fields: [updatedByStaffId], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // These are the admin-editable runtime values; DEFAULT_SETTINGS in lib/money.ts supplies seed defaults only.
+}
