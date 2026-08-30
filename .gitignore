@@ -73,3 +73,9 @@ take-screenshots.js
 
 # temp build log artifacts
 /neobee-build.log
+
+# reference material & local agent artifacts (kept local, never pushed)
+/done_by_zcode/
+/reference/
+/screenshots/
+/.zcode/
