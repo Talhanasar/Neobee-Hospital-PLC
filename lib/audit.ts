@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import type { ActorType, AuditLog, Prisma } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/db';
 
@@ -13,18 +14,36 @@ export const actionVerbs = Object.freeze({
   requestApprove: 'request.approve',
   requestReject: 'request.reject',
   investorRegister: 'investor.register',
+  leadCreate: 'lead.create',
+  leadContact: 'lead.contact',
+  paymentRecord: 'payment.record',
+  investorProfileUpdate: 'investor.profile_update',
+  investorApprove: 'investor.approve',
+  registrationStatusCheck: 'registration.status_check',
 } as const);
 
 export type AuditAction = (typeof actionVerbs)[keyof typeof actionVerbs];
 
-export function getRequestMetadata(request: Request): { ipAddress: string | null; userAgent: string | null } {
-  const realIp = request.headers.get('x-real-ip')?.trim() ?? null;
-  const forwardedFor = request.headers.get('x-forwarded-for');
+export type RequestMeta = { ipAddress: string | null; userAgent: string | null };
+
+function parseRequestMeta(get: (name: string) => string | null): RequestMeta {
+  const realIp = get('x-real-ip')?.trim() ?? null;
+  const forwardedFor = get('x-forwarded-for');
   const forwardedIp = forwardedFor ? forwardedFor.split(',')[0]?.trim() ?? null : null;
   // Null IPs share one bucket so callers cannot bypass limits by omitting headers.
   const ipAddress = realIp ?? forwardedIp;
-  const userAgent = request.headers.get('user-agent');
+  const userAgent = get('user-agent');
   return { ipAddress, userAgent };
+}
+
+export function getRequestMetadata(request: Request): RequestMeta {
+  return parseRequestMeta((name) => request.headers.get(name));
+}
+
+/** Server-action twin of getRequestMetadata — same headers, read from the async store. */
+export async function getRequestMetadataFromHeaders(): Promise<RequestMeta> {
+  const h = await headers();
+  return parseRequestMeta((name) => h.get(name));
 }
 
 export type AuditEntry = {

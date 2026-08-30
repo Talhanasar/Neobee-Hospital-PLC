@@ -40,7 +40,7 @@ The application reads these environment variable names when the corresponding se
 
 `pnpm build` deliberately succeeds without any of these values. Database-reading pages are marked `force-dynamic`, and the Supabase clients read configuration lazily when called.
 
-Verification status at the time of writing is `tsc --noEmit` clean, `eslint` clean with zero warnings, `next build` successful, and `vitest` with 88 tests passing in 4 files.
+Verification status at the time of writing is `tsc --noEmit` clean, `eslint` clean, `next build` successful, and `vitest` with 111 tests passing in 5 files. `pnpm lint` also runs the i18n parity and env parity guard scripts.
 
 ## 2. Design tokens
 
@@ -80,6 +80,19 @@ The small set of hardcoded hex literals has a local reason rather than a missing
 - `#d99408` is the primary-button hover color.
 - `#E9A215`, `#FDFCF7`, and `#A96F05` are the three fills in the receipt logo SVG.
 
+### 2.1 The reference-prototype utility layer (added by the design port)
+
+The marketing design was ported 1:1 from the approved z.ai prototype; its utility vocabulary now lives alongside the tokens in `app/globals.css` and must be reused rather than reinvented:
+
+- `.hex-bg` — faint hexagon lattice backdrop (hero, verify, interest, map placeholder card).
+- `.hex` / `.hex-clip` / `.hex-clip-pointy` — hexagon clip paths (flat chips / image frames and icon tiles).
+- `.nb-card`, `.nb-kicker`, `.nb-input` — the shared card, eyebrow-label, and input treatments.
+- `.hex-float` / `.hex-float-slow` — floating decorative hexagon outlines; `.page-in` — route entrance.
+- `.reveal` + `.reveal-in` — scroll reveal (driven by `components/ui/Reveal.tsx`, reduced-motion safe with a 2s fallback).
+- `.scan-line` — verify viewfinder sweep; `.sec-flash` — About deep-link anchor flash; `.tnum` / `.num` — tabular mono numerals.
+
+Shared primitives for the marketing design live in `components/ui/bits.tsx`: `HexLogo`, `HexOutline`, `HexAvatar`, `Kicker`, `SectionHead`, `Btn` (variants `primary | outline | ghost | soft`, sizes `sm | md | lg`, via `btnClasses()` for `Link`-styled buttons), `Field`, `PseudoQr`, `HexQr`. Icons are inline SVG components in `components/ui/icons.tsx` (lucide geometry) — **there is deliberately no icon npm dependency; add new icons there rather than installing a library.**
+
 ## 3. Internationalisation
 
 The internationalisation files are:
@@ -94,9 +107,9 @@ The internationalisation files are:
 
 The message namespace list in `messages/en.json` is:
 
-`meta`, `nav`, `footer`, `common`, `categories`, `statuses`, `landing`, `progress`, `receipt`, `qr`, `methods`, `verify`, `admin`, `login`, `portal`.
+`meta`, `brand`, `nav`, `footer`, `common`, `categories`, `statuses`, `landing`, `about`, `gallery`, `progress`, `receipt`, `qr`, `methods`, `verify`, `interest`, `admin`, `login`, `register`, `invest`, `portal`, `auth`.
 
-Both catalogs contain 221 keys, verified in parity.
+Both catalogs contain 519 keys, verified in parity by `pnpm check:i18n`.
 
 Every internal link uses `Link` from `@/i18n/navigation`. Locale-aware redirects use the object shape `redirect({ href, locale })`.
 
@@ -128,25 +141,38 @@ A file without a `'use client'` directive is a Server Component or is server-com
 | Component | Type | Role |
 |-----------|------|------|
 | `components/admin/AdminNav.tsx` | Client | Client-side admin section navigation with active-route state. |
+| `components/admin/LeadsTable.tsx` | Client | Interest-lead pipeline table; "mark contacted" server action per row. |
 | `components/admin/RegisterForm.tsx` | Client | Staff investment registration form with calculated preview and field errors. |
 | `components/admin/ShareholderTable.tsx` | Server | Filterable, paginated shareholder ledger table. |
-| `components/auth/LoginForm.tsx` | Client | Investor authentication form. |
-| `components/layout/LanguageSwitcher.tsx` | Client | Locale switcher. |
-| `components/layout/NavPills.tsx` | Client | Primary navigation pills with active-route state. |
-| `components/layout/SiteFooter.tsx` | Server | Localised site footer. |
-| `components/layout/SiteHeader.tsx` | Server | Site header and public navigation shell. |
+| `components/about/SecFlash.tsx` | Client | About deep-link (`?sec=`) scroll + honey anchor flash. |
+| `components/auth/LoginForm.tsx` | Client | Investor phone/OTP authentication form (hex step indicator, +880 addon). |
+| `components/gallery/GalleryClient.tsx` | Client | Gallery filters, image grid with fade-in tiles, lightbox. |
+| `components/home/GlanceStat.tsx` | Client | At-a-glance stat with count-up and About deep-link. |
+| `components/home/ProjectCardDialog.tsx` | Client | Canvas-rendered "project at a glance" PNG dialog. |
+| `components/interest/LeadForm.tsx` | Client | Public lead-capture form; server action + duplicate guard + NB-LEAD ref. |
+| `components/layout/BackToTop.tsx` | Client | Bottom-left back-to-top affordance after 480px scroll. |
+| `components/layout/LanguageSwitcher.tsx` | Client | Segmented EN/বাং locale switcher. |
+| `components/layout/NavPills.tsx` | Client | Marketing header: hex brand, pill links, switcher, auth button, mobile menu. |
+| `components/layout/SiteFooter.tsx` | Server | Four-column footer (brand, explore, utility, contact) + bottom bar. |
+| `components/layout/SiteHeader.tsx` | Server | Reads session, renders `NavPills` with auth state. |
 | `components/portal/ConfirmButton.tsx` | Client | Investor confirmation action with an armed confirmation state and error output. |
 | `components/receipt/PrintButton.tsx` | Client | Print action for a receipt. |
 | `components/receipt/QrModal.tsx` | Client | QR preview modal with keyboard and focus handling. |
 | `components/receipt/Receipt.tsx` | Server | English bank-facing receipt rendered from `ReceiptData`. |
+| `components/share-card.ts` | Client util | Canvas drawing of shareable PNG cards (project card; no upload). |
+| `components/ui/bits.tsx` | Server-compatible | Reference-design primitives: HexLogo, HexOutline, HexAvatar, Kicker, SectionHead, Btn, Field, PseudoQr, HexQr. |
+| `components/ui/icons.tsx` | Server-compatible | Inline SVG icon set (lucide geometry) — no icon dependency. |
 | `components/ui/Button.tsx` | Server-compatible | Shared button styles and forwarded button component. |
 | `components/ui/Card.tsx` | Server-compatible | Shared card and card-header containers. |
 | `components/ui/CategoryBadge.tsx` | Server | Localised investment-category badge. |
 | `components/ui/GoalBanner.tsx` | Server | Fundraising goal, progress bars, and summary metadata. |
 | `components/ui/Money.tsx` | Server-compatible | BDT amount formatter and numeric presentation. |
 | `components/ui/Num.tsx` | Server-compatible | Western-Arabic numeric presentation using `en-IN` grouping. |
+| `components/ui/Reveal.tsx` | Client | Scroll-reveal wrapper (IntersectionObserver + 2s fallback, reduced-motion safe). |
 | `components/ui/StatCard.tsx` | Server-compatible | Compact statistic panel. |
 | `components/ui/StatusBadge.tsx` | Server | Localised pending or confirmed status badge. |
+| `components/ui/use-count-up.ts` | Client hook | Eased count-up hook for stat displays. |
+| `components/verify/ScanViewfinder.tsx` | Client | Demo viewfinder (hex QR, corner brackets, scan line, status chip). |
 | `components/verify/VerifyLookup.tsx` | Client | Public verification-code or UID lookup and result display. |
 
 ## 6. Routes
@@ -155,17 +181,27 @@ These are the application page routes. The locale segment is represented by `[lo
 
 | Route | Rendering | Authorization |
 |-------|-----------|---------------|
-| `/[locale]` | Dynamic | Public |
-| `/[locale]/progress` | Dynamic | Public |
-| `/[locale]/verify` | SSG; `/en/verify` and `/bn/verify` are prerendered | Public |
+| `/[locale]` | Dynamic | Public — marketing homepage |
+| `/[locale]/about` | Dynamic | Public — origin, partnership, leadership, values, visit |
+| `/[locale]/gallery` | Dynamic | Public — filterable gallery + lightbox |
+| `/[locale]/interest` | Dynamic | Public — lead-capture form (audited, server action) |
+| `/[locale]/verify` | Dynamic | Public — code/UID lookup (rate-limited API) + demo viewfinder |
 | `/[locale]/login` | Dynamic | Public |
+| `/[locale]/register` | Dynamic | Public — investor registration (+ `/register/profile`) |
 | `/[locale]/portal` | Dynamic | Investor |
+| `/[locale]/portal/invest` | Dynamic | Investor — submit investment request (new shares or payment-done report) |
+| `/[locale]/portal/account` | Dynamic | Investor — account details (name, NID, email; phone read-only) |
+| `/[locale]/portal/password` | Dynamic | Investor — change password |
 | `/[locale]/portal/receipts/[id]` | Dynamic | Investor; the investor must own the record |
-| `/[locale]/admin` | Dynamic | Staff |
+| `/[locale]/admin` | Dynamic | Staff — dashboard, shareholder register |
 | `/[locale]/admin/register` | Dynamic | Staff |
+| `/[locale]/admin/requests` | Dynamic | Staff — approval queue |
+| `/[locale]/admin/requests/[id]` | Dynamic | Staff — request review/approve/reject |
+| `/[locale]/admin/leads` | Dynamic | Staff — interest-lead pipeline |
+| `/[locale]/admin/settings` | Dynamic | Staff — share price, incentive, targets |
 | `/[locale]/admin/receipts/[id]` | Dynamic | Staff |
 
-`/` is static. The API routes under `app/api/investments/` are not page routes and are not included in this table.
+`/` is static (redirects to the default locale). The API routes under `app/api/investments/` are not page routes and are not included in this table.
 
 ## 7. Decisions taken that the brief left open
 
@@ -256,11 +292,11 @@ Receipt QR images are plain `<img>` elements with a single-line ESLint suppressi
 
 ## 12. Known gaps and what is not built
 
-- There is no admin UI for editing settings. The admin-editable share price cannot yet be changed through the interface. `updateSetting` exists in `lib/settings.ts`, but no route or page calls it. `updateSetting` does not write its own audit row; the calling route must compose that write.
+- ~~There is no admin UI for editing settings.~~ Resolved: the admin settings UI exists at `/admin/settings` (`SettingsForm` + server action) editing the runtime `Setting` rows.
 - `lib/link-investor.ts` was added this pass to populate `Investor.authUserId` after OTP verification, which makes the portal reachable. It refuses to overwrite an existing different non-null `authUserId`, because that would be an account-takeover path. This new server-side behavior introduced by the frontend pass should be reviewed.
-- The OTP flow has not been exercised against a live Supabase project because no credentials were present in this environment. Reading `data.user.user_metadata?.phone ?? data.user.phone` is a defensive fallback; the phone field's location was not confirmed against a real response. A live test is required.
-- Nothing has been tested in a browser. No dev server was run and no page was rendered, so the visual result and every interactive flow are unverified.
-- No component tests were added. The 88 passing tests are the pre-existing backend unit tests.
+- The OTP flow has not been exercised against a live Supabase project with real SMS; the demo login buttons (seeded accounts) are the verified path. `scripts/check-env.mjs` also reported the configured anon key being rejected (HTTP 401) by the project URL on the reference machine — fix that pair before live OTP testing.
+- The marketing pages were browser-verified (desktop EN + BN screenshots judged against the reference prototype, and the lead form exercised end to end). The portal and admin console have not had the same visual pass against the z.ai prototype's dashboard views.
+- No component tests were added. The 111 passing tests are the backend unit tests (money, requests, validation, settings, receipt).
 - The two blocking business rules from the backend pass remain unresolved: donation-percentage payout mechanics and profit-sharing/distribution mechanics.
 
 ## 13. Verification commands
@@ -277,8 +313,8 @@ pnpm build
 
 Expected results:
 
-- `pnpm lint` completes with zero warnings.
-- `pnpm test` reports 88 passing tests in 4 files.
+- `pnpm lint` completes with zero errors (it also runs the i18n and env parity guards).
+- `pnpm test` reports 111 passing tests in 5 files.
 - `pnpm exec tsc --noEmit` completes cleanly.
 - `pnpm build` succeeds without the database or Supabase environment variables because database-reading pages are dynamic and clients read configuration lazily.
 
@@ -288,7 +324,7 @@ Verify catalog key parity and the namespace roots with:
 node -e "const f=o=>Object.entries(o).flatMap(([k,v])=>typeof v==='object'&&v?f(v).map(s=>k+'.'+s):[k]);const a=f(require('./messages/en.json'));const b=f(require('./messages/bn.json'));console.log('en keys',a.length,'bn keys',b.length,'parity',a.length===b.length&&a.every((k,i)=>k===b[i]));console.log(Object.keys(require('./messages/en.json')).join(', '))"
 ```
 
-It must report 221 keys for each catalog and `parity true`, with the namespace roots `meta, nav, footer, common, categories, statuses, landing, progress, receipt, qr, methods, verify, admin, login, portal`.
+It must report 519 keys for each catalog and `parity true`, with the namespace roots `meta, brand, nav, footer, common, categories, statuses, landing, about, gallery, progress, receipt, qr, methods, verify, interest, admin, login, register, invest, portal, auth`.
 
 Verify that the Bangla catalog contains no Bengali digit characters:
 

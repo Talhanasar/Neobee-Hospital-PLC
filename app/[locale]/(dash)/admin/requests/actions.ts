@@ -3,9 +3,9 @@
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { AuthError, requireStaff } from '@/lib/auth';
-import { approveInvestmentRequest, rejectInvestmentRequest } from '@/lib/requests';
-import { reviewInvestmentRequestSchema, rejectInvestmentRequestSchema } from '@/lib/validation';
+import { approveInvestmentRequest, approvePaymentRequest, rejectInvestmentRequest } from '@/lib/requests';import { reviewInvestmentRequestSchema, rejectInvestmentRequestSchema } from '@/lib/validation';
 import { ZodError } from 'zod';
+import { demoResolveRequest, isDemoData } from '@/data/demo/store';
 
 export type ReviewState = { ok: false; fieldErrors: Record<string, string[]>; formError?: string } | { ok: true; investmentId?: string | null };
 
@@ -58,6 +58,15 @@ export async function approveRequestAction(id: string, prev: ReviewState, formDa
   const data = parsed.data;
   const depositDate = data.depositDate ? new Date(data.depositDate) : undefined;
 
+  if (isDemoData()) {
+    demoResolveRequest(id, 'APPROVED', data.reviewNote ?? null);
+    revalidatePath('/admin/requests');
+    revalidatePath(`/admin/requests/${id}`);
+    revalidatePath('/admin');
+    revalidatePath('/portal');
+    return { ok: true, investmentId: null };
+  }
+
   try {
     const result = await approveInvestmentRequest(
       {
@@ -89,8 +98,7 @@ export async function approveRequestAction(id: string, prev: ReviewState, formDa
   }
 }
 
-export async function rejectRequestAction(id: string, prev: ReviewState, formData: FormData): Promise<ReviewState> {
-  let staff;
+export async function rejectRequestAction(id: string, prev: ReviewState, formData: FormData): Promise<ReviewState> {  let staff;
   try {
     staff = await requireStaff();
   } catch (error) {
@@ -108,6 +116,15 @@ export async function rejectRequestAction(id: string, prev: ReviewState, formDat
   const parsed = rejectInvestmentRequestSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, fieldErrors: flattenFieldErrors(parsed.error) };
 
+  if (isDemoData()) {
+    demoResolveRequest(id, 'REJECTED', parsed.data.reviewNote);
+    revalidatePath('/admin/requests');
+    revalidatePath(`/admin/requests/${id}`);
+    revalidatePath('/admin');
+    revalidatePath('/portal');
+    return { ok: true, investmentId: null };
+  }
+
   try {
     await rejectInvestmentRequest(
       {
@@ -115,6 +132,50 @@ export async function rejectRequestAction(id: string, prev: ReviewState, formDat
         staffId: staff.id,
         reviewNote: parsed.data.reviewNote,
       },
+      await getRequestMeta(),
+    );
+
+    revalidatePath('/admin/requests');
+    revalidatePath(`/admin/requests/${id}`);
+    revalidatePath('/admin');
+    revalidatePath('/portal');
+    return { ok: true, investmentId: null };
+  } catch (error) {
+    if (error instanceof Error) {
+      return { ok: false, fieldErrors: {}, formError: error.message };
+    }
+    throw error;
+  }
+}
+
+// PAYMENT-kind requests: approval records a DEPOSIT ledger Transaction
+// against the target investment — no Investment row is created.
+export async function approvePaymentRequestAction(id: string, prev: ReviewState, formData: FormData): Promise<ReviewState> {
+  let staff;
+  try {
+    staff = await requireStaff();
+  } catch (error) {
+    if (error instanceof AuthError) return { ok: false, fieldErrors: {}, formError: 'Please sign in as staff to continue.' };
+    throw error;
+  }
+
+  const reviewNote = (() => {
+    const v = String(formData.get('reviewNote') ?? '').trim();
+    return v || undefined;
+  })();
+
+  if (isDemoData()) {
+    demoResolveRequest(id, 'APPROVED', reviewNote ?? null);
+    revalidatePath('/admin/requests');
+    revalidatePath(`/admin/requests/${id}`);
+    revalidatePath('/admin');
+    revalidatePath('/portal');
+    return { ok: true, investmentId: null };
+  }
+
+  try {
+    await approvePaymentRequest(
+      { requestId: id, staffId: staff.id, reviewNote },
       await getRequestMeta(),
     );
 

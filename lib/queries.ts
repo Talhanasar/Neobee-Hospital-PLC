@@ -2,6 +2,20 @@ import { prisma } from '@/lib/db';
 import { getSettings, type Settings } from '@/lib/settings';
 import type { ReceiptData } from '@/lib/receipt';
 import type { ListInvestmentsInput } from '@/lib/validation';
+import {
+  demoGetPublicSummary,
+  demoGetReceiptData,
+  demoListPaymentsForInvestment,
+  demoListPendingRequests,
+  demoListRequestsForInvestor,
+  demoListInvestmentsForInvestor,
+  demoListInvestmentsPage,
+  demoGetAdminStats,
+  demoGetRequestForReview,
+  demoListRegistrations,
+  demoCountPendingRegistrations,
+  isDemoData,
+} from '@/data/demo/store';
 
 export type PublicSummary = {
   totalRaised: number;
@@ -14,6 +28,7 @@ export type PublicSummary = {
 };
 
 export async function getPublicSummary(): Promise<PublicSummary> {
+  if (isDemoData()) return demoGetPublicSummary() as PublicSummary;
   const settings = await getSettings();
   const [raised, sharesSubscribed, foundingPhase, entrepreneurSlots] = await Promise.all([
     prisma.investment.aggregate({ where: { status: 'CONFIRMED' }, _sum: { amount: true } }),
@@ -34,6 +49,7 @@ export async function getPublicSummary(): Promise<PublicSummary> {
 
 // Callers are responsible for authorization before exposing this data.
 export async function getReceiptData(investmentId: string): Promise<ReceiptData | null> {
+  if (isDemoData()) return demoGetReceiptData(investmentId) as ReceiptData | null;
   const row = await prisma.investment.findUnique({
     where: { id: investmentId },
     select: {
@@ -80,6 +96,40 @@ export async function getInvestmentIdForCode(code: string): Promise<string | nul
   return row?.id ?? null;
 }
 
+export type InvestmentPaymentRow = {
+  id: string;
+  amount: number;
+  type: 'DEPOSIT' | 'REFUND' | 'CORRECTION' | 'DISTRIBUTION';
+  depositMethod: 'BANK_DEPOSIT' | 'BANK_TRANSFER' | 'CHEQUE' | 'MOBILE_BANKING' | null;
+  depositDate: Date | null;
+  note: string | null;
+  createdAt: Date;
+  recordedByName: string | null;
+};
+
+// Staff-only: payment history for one investment (admin receipts page).
+export async function listPaymentsForInvestment(investmentId: string): Promise<InvestmentPaymentRow[]> {
+  if (isDemoData()) return demoListPaymentsForInvestment(investmentId) as InvestmentPaymentRow[];
+  const rows = await prisma.transaction.findMany({
+    where: { investmentId },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      amount: true,
+      type: true,
+      depositMethod: true,
+      depositDate: true,
+      note: true,
+      createdAt: true,
+      recordedByStaff: { select: { name: true } },
+    },
+  });
+  return rows.map(({ recordedByStaff, ...rest }) => ({
+    ...rest,
+    recordedByName: recordedByStaff?.name ?? null,
+  }));
+}
+
 export type AdminStats = {
   totalSubscribed: number;
   totalCount: number;
@@ -92,6 +142,7 @@ export type AdminStats = {
   pendingRequestCount: number;
 };
 export async function getAdminStats(): Promise<AdminStats> {
+  if (isDemoData()) return demoGetAdminStats();
   const [total, confirmed, pending, incentivesDue, entrepreneurCount, pendingRequestCount] = await Promise.all([
     prisma.investment.aggregate({ _sum: { amount: true }, _count: true }),
     prisma.investment.aggregate({ where: { status: 'CONFIRMED' }, _sum: { amount: true }, _count: true }),
@@ -129,6 +180,7 @@ export type InvestmentListRow = {
 };
 export type InvestmentListResult = { items: InvestmentListRow[]; page: number; pageSize: number; total: number; totalPages: number };
 export async function listInvestmentsPage(input: ListInvestmentsInput): Promise<InvestmentListResult> {
+  if (isDemoData()) return demoListInvestmentsPage(input) as InvestmentListResult;
   const where = {
     ...(input.status ? { status: input.status } : {}),
     ...(input.category ? { category: input.category } : {}),
@@ -202,6 +254,7 @@ export type PortalRow = {
 
 // Ownership boundary: this query must stay scoped to exactly one investorId and never widen.
 export async function listInvestmentsForInvestor(investorId: string): Promise<PortalRow[]> {
+  if (isDemoData()) return demoListInvestmentsForInvestor(investorId) as PortalRow[];
   return await prisma.investment.findMany({
     where: { investorId },
     orderBy: { createdAt: 'desc' },
@@ -224,6 +277,8 @@ export async function listInvestmentsForInvestor(investorId: string): Promise<Po
 export type RequestListRow = {
   id: string;
   status: 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+  kind: 'SHARE_PURCHASE' | 'PAYMENT';
+  targetInvestmentUid: string | null;
   shares: number;
   entrepreneurRequested: boolean;
   sharePrice: number;
@@ -242,12 +297,15 @@ export type RequestListRow = {
 };
 
 export async function listRequestsForInvestor(investorId: string): Promise<RequestListRow[]> {
+  if (isDemoData()) return demoListRequestsForInvestor(investorId) as unknown as RequestListRow[];
   return await prisma.investmentRequest.findMany({
     where: { investorId },
     orderBy: { createdAt: 'desc' },
     select: {
       id: true,
       status: true,
+      kind: true,
+      targetInvestment: { select: { uid: true } },
       shares: true,
       entrepreneurRequested: true,
       sharePrice: true,
@@ -264,7 +322,12 @@ export async function listRequestsForInvestor(investorId: string): Promise<Reque
       createdAt: true,
       updatedAt: true,
     },
-  });
+  }).then((rows) =>
+    rows.map(({ targetInvestment, ...rest }) => ({
+      ...rest,
+      targetInvestmentUid: targetInvestment?.uid ?? null,
+    })),
+  );
 }
 
 export type PendingRequestAdminRow = {
@@ -272,6 +335,8 @@ export type PendingRequestAdminRow = {
   investorId: string;
   investorName: string;
   investorPhone: string;
+  kind: 'SHARE_PURCHASE' | 'PAYMENT';
+  targetInvestmentUid: string | null;
   shares: number;
   entrepreneurRequested: boolean;
   sharePrice: number;
@@ -285,6 +350,7 @@ export type PendingRequestAdminRow = {
 };
 
 export async function listPendingRequests(): Promise<PendingRequestAdminRow[]> {
+  if (isDemoData()) return demoListPendingRequests() as unknown as PendingRequestAdminRow[];
   const rows = await prisma.investmentRequest.findMany({
     where: { status: 'SUBMITTED' },
     orderBy: { createdAt: 'desc' },
@@ -292,6 +358,8 @@ export async function listPendingRequests(): Promise<PendingRequestAdminRow[]> {
       id: true,
       investorId: true,
       investor: { select: { name: true, phone: true } },
+      kind: true,
+      targetInvestment: { select: { uid: true } },
       shares: true,
       entrepreneurRequested: true,
       sharePrice: true,
@@ -304,10 +372,11 @@ export async function listPendingRequests(): Promise<PendingRequestAdminRow[]> {
       createdAt: true,
     },
   });
-  return rows.map((row) => ({
-    ...row,
-    investorName: row.investor.name,
-    investorPhone: row.investor.phone,
+  return rows.map(({ targetInvestment, investor, ...rest }) => ({
+    ...rest,
+    investorName: investor.name,
+    investorPhone: investor.phone,
+    targetInvestmentUid: targetInvestment?.uid ?? null,
   }));
 }
 
@@ -316,6 +385,9 @@ export type RequestForReview = {
   investorId: string;
   investorName: string;
   investorPhone: string;
+  kind: 'SHARE_PURCHASE' | 'PAYMENT';
+  targetInvestmentId: string | null;
+  targetInvestmentUid: string | null;
   shares: number;
   entrepreneurRequested: boolean;
   sharePrice: number;
@@ -336,12 +408,16 @@ export type RequestForReview = {
 };
 
 export async function getRequestForReview(id: string): Promise<RequestForReview | null> {
+  if (isDemoData()) return demoGetRequestForReview(id) as unknown as RequestForReview | null;
   const row = await prisma.investmentRequest.findUnique({
     where: { id },
     select: {
       id: true,
       investorId: true,
       investor: { select: { name: true, phone: true } },
+      kind: true,
+      targetInvestmentId: true,
+      targetInvestment: { select: { uid: true } },
       shares: true,
       entrepreneurRequested: true,
       sharePrice: true,
@@ -362,10 +438,47 @@ export async function getRequestForReview(id: string): Promise<RequestForReview 
     },
   });
   if (!row) return null;
+  const { targetInvestment, investor, reviewedByStaff, ...rest } = row;
   return {
-    ...row,
-    investorName: row.investor.name,
-    investorPhone: row.investor.phone,
-    reviewedByName: row.reviewedByStaff?.name ?? null,
+    ...rest,
+    investorName: investor.name,
+    investorPhone: investor.phone,
+    reviewedByName: reviewedByStaff?.name ?? null,
+    targetInvestmentUid: targetInvestment?.uid ?? null,
   };
+}
+
+export type RegistrationRow = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string;
+  nationalIdNumber: string | null;
+  approvalStatus: 'PENDING' | 'APPROVED';
+  createdAt: Date;
+  investmentCount: number;
+};
+
+// Staff-only: the registration approval queue (newest first, counts included).
+export async function listRegistrations(): Promise<RegistrationRow[]> {
+  if (isDemoData()) return demoListRegistrations() as unknown as RegistrationRow[];
+  const rows = await prisma.investor.findMany({
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      nationalIdNumber: true,
+      approvalStatus: true,
+      createdAt: true,
+      _count: { select: { investments: true } },
+    },
+  });
+  return rows.map(({ _count, ...rest }) => ({ ...rest, investmentCount: _count.investments }));
+}
+
+export async function countPendingRegistrations(): Promise<number> {
+  if (isDemoData()) return demoCountPendingRegistrations();
+  return prisma.investor.count({ where: { approvalStatus: 'PENDING' } });
 }

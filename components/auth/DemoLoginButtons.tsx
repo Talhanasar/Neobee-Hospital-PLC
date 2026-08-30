@@ -4,10 +4,11 @@ import * as React from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/navigation';
 import { demoLoginAction } from '@/app/[locale]/(auth)/login/actions';
-import { Button } from '@/components/ui/Button';
+import { ShieldCheckIcon, UserRoundIcon } from '@/components/ui/icons';
 
-// Compact demo affordance for the login card. One-click sign-in as the
-// seeded demo investor or demo admin. Visually secondary to the real form.
+// One-click demo tour on the login card, ported from the reference design:
+// two tiles (hex icon + label + sub) that sign in as the seeded demo
+// investor or admin. Visually secondary to the real phone+password form.
 export default function DemoLoginButtons() {
   const t = useTranslations('login');
   const router = useRouter();
@@ -27,19 +28,43 @@ export default function DemoLoginButtons() {
     });
   };
 
+  const tile = (role: 'investor' | 'admin', Icon: typeof UserRoundIcon) => (
+    <button
+      type="button"
+      disabled={isPending}
+      onClick={() => handle(role)}
+      className="group flex items-center gap-2.5 rounded-xl border border-line bg-panel p-3 text-left transition-colors hover:border-honey hover:bg-honey-soft/40 focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2 disabled:opacity-50"
+    >
+      <span
+        aria-hidden="true"
+        className="hex-clip-pointy grid h-9 w-10 shrink-0 place-items-center bg-honey-soft text-honey-deep transition-colors group-hover:bg-honey/30"
+      >
+        <Icon size={17} />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold text-ink">
+          {isPending ? t('demoSigningIn') : role === 'investor' ? t('demoInvestor') : t('demoAdmin')}
+        </span>
+        <span className="block truncate text-xs text-ink-soft">
+          {role === 'investor' ? t('demoInvestorSub') : t('demoAdminSub')}
+        </span>
+      </span>
+    </button>
+  );
+
   return (
-    <div className="space-y-2">
-      <p className="text-center text-sm text-ink-soft">{t('demoHint')}</p>
-      <div className="flex gap-2">
-        <Button type="button" variant="primary" disabled={isPending} onClick={() => handle('investor')} className="flex-1">
-          {isPending ? t('demoSigningIn') : t('demoInvestor')}
-        </Button>
-        <Button type="button" variant="default" disabled={isPending} onClick={() => handle('admin')} className="flex-1">
-          {isPending ? t('demoSigningIn') : t('demoAdmin')}
-        </Button>
+    <div>
+      <div className="flex items-center gap-3" aria-hidden="true">
+        <span className="h-px flex-1 bg-line" />
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{t('demoTour')}</span>
+        <span className="h-px flex-1 bg-line" />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {tile('investor', UserRoundIcon)}
+        {tile('admin', ShieldCheckIcon)}
       </div>
       {error ? (
-        <div role="alert" className="bg-[#FBE4E2] text-[#B3261E] rounded-card px-4 py-3 text-center text-sm">
+        <div role="alert" className="mt-3 rounded-card bg-[#FBE4E2] px-4 py-3 text-center text-sm text-[#B3261E]">
           {t('demoError')}
         </div>
       ) : null}

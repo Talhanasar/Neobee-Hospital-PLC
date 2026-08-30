@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Reference material dropped in by the user (generated z.ai prototype) —
+    // not part of the app build.
+    "done_by_zcode/**",
   ]),
 ]);
 

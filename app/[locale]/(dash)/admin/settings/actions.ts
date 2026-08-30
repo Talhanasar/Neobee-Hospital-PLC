@@ -8,6 +8,7 @@ import { writeAuditLog, actionVerbs } from '@/lib/audit';
 import { ActorType } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { demoUpdateSettings, isDemoData } from '@/data/demo/store';
 
 const SETTING_KEYS = [
   'SHARE_PRICE',
@@ -61,6 +62,13 @@ export async function updateSettingsAction(prev: SettingsState, formData: FormDa
   if (!parsed.success) return { ok: false, fieldErrors: flattenFieldErrors(parsed.error) };
   const h = await headers();
   const meta = { ipAddress: h.get('x-real-ip')?.trim() ?? null, userAgent: h.get('user-agent') };
+  if (isDemoData()) {
+    demoUpdateSettings(parsed.data);
+    revalidatePath('/admin/settings');
+    revalidatePath('/admin');
+    revalidatePath('/');
+    return { ok: true };
+  }
   await prisma.$transaction(async (tx) => {
     for (const key of SETTING_KEYS) {
       await updateSetting(key, parsed.data[key], staff.id, tx);

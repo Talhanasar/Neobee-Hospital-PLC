@@ -2,7 +2,7 @@
 
 Next.js 16 (App Router) + TypeScript, Prisma 7, Supabase (Postgres / Auth / Storage), next-intl (`en` + `bn`), Tailwind CSS. Primary development shell is Git Bash on Windows.
 
-Status as of 2026-08-22: `pnpm build`, `pnpm test` (88 unit tests), `pnpm test:integration` (9 tests), and `pnpm lint` (223 i18n keys matched) all pass.
+Status as of 2026-08-29: `pnpm build`, `pnpm test` (111 unit tests), and `pnpm lint` (ESLint + 519 i18n keys matched + env parity) all pass. `3_leads` has been applied to the hosted Supabase database.
 
 ---
 
@@ -46,6 +46,7 @@ cp .env.example .env
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only key; never expose to the client |
 | `SUPABASE_STORAGE_BUCKET` | Bucket name for NID scans and deposit slips |
 | `SEED_ALLOW` | Commented out by default; only needed to force seeding when `NODE_ENV=production` |
+| `DEMO_LOGIN` | Commented out by default; set to `'true'` to enable the demo login buttons outside development (demo users come from the seed script) |
 
 Real values come from the Supabase dashboard under Project Settings → API.
 
@@ -116,7 +117,7 @@ pnpm exec prisma migrate deploy    # apply all migrations directly (raw escape h
 pnpm db:seed
 ```
 
-Two migrations exist: `0_init` (schema plus the `investment_uid_seq` sequence) and `1_rls` (Supabase RLS policies).
+Four migrations exist: `0_init` (schema plus the `investment_uid_seq` sequence), `1_rls` (Supabase RLS policies), `2_investment_requests` (investor request → staff approval workflow), and `3_leads` (public interest leads — `Lead` model, `NB-LEAD-XXXX` refs, `NEW → CONTACTED` staff pipeline; also enables RLS on `Lead` with a staff SELECT policy).
 
 The `db:deploy` runner loads `.env` and `.env.local` itself before resolving the provider (`.env.local` takes precedence; variables already exported in the shell win over both files), so it works even though plain `node` does not read `.env`.
 
@@ -159,7 +160,7 @@ psql "$CONN" -c "UPDATE \"Investor\" SET \"authUserId\"='<UUID>' WHERE phone='+8
 ## 9. Tests and checks
 
 ```bash
-pnpm test              # 88 unit tests, no database required
+pnpm test              # 111 unit tests, no database required
 pnpm test:integration  # 9 route and RLS tests against a throwaway Postgres
 pnpm lint              # ESLint plus the i18n and env-parity checks
 pnpm check:i18n        # key parity between messages/en.json and messages/bn.json
@@ -184,7 +185,7 @@ next-intl fails the build on a message key referenced by a statically rendered p
 ## 11. Known limitations (reference machine, 2026-08-22)
 
 - `lib/storage.ts` compiles but was never exercised against a real bucket. Nothing in `app/` or `components/` imports it — there is no upload endpoint for NID scans or deposit slips yet.
-- Nothing calls `updateSetting` from `lib/settings.ts`, so the admin-editable share price has no interface. The `Setting` table and the function both exist.
+- ~~Nothing calls `updateSetting` from `lib/settings.ts`, so the admin-editable share price has no interface.~~ Resolved: `/admin/settings` (SettingsForm + server action) edits the runtime `Setting` rows.
 - Investor auth-linking gap; see section 8.
 - Phone/OTP was never executed (no Docker). Real SMS delivery is unverified.
 - RLS cross-tenant denial was verified, but on vanilla Postgres via `scripts/supabase-compat.sql`, which mirrors rather than exactly reproduces hosted Supabase. Re-verify against the hosted project before launch. See section 12 for which RLS path is active and why.

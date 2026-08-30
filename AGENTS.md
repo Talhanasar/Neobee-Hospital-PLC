@@ -1,12 +1,10 @@
 # AGENTS.md — Neobee Hospital PLC Stakeholder Finance Portal
 
-The original was overwritten by `create-next-app` on 2026-08-20; this version is reconstructed from content captured earlier that day; `TODO(architect):` markers flag what was lost and needs re-supplying by the human.
+The original was overwritten by `create-next-app` on 2026-08-20 and reconstructed from captured content. `TODO(architect):` markers flag what is still genuinely unknown — do not guess at them. Start with `README.md` for orientation, `FRONTEND.md` for the locked design system, and `RUNBOOK.md` for environment/database operations.
 
 ## 1. What this product is
 
-A stakeholder finance portal for Neobee Hospital PLC. Investors deposit money against shares, receive a unique ID and a verification code, and later self-confirm their own record. Staff register deposits and monitor the raise.
-
-TODO(architect): the original wording of this section was lost. The paragraph above is a reconstruction from facts stated elsewhere in this document.
+A stakeholder finance portal for Neobee Hospital PLC. Investors deposit money against shares, receive a unique ID and a verification code, and later self-confirm their own record. Staff register deposits and monitor the raise. The public marketing surface (home, about, gallery) and the "Become a Shareholder" lead form carry no fundraising figures; the portal and admin console carry all of them.
 
 ## 2. Tech stack
 
@@ -40,6 +38,8 @@ TODO(architect): the original wording of this section was lost. The paragraph ab
 | Verification code format | `NB-XXXXXX` (6 chars, unambiguous alphabet: no `I O 0 1`) |
 | Deposit methods | Bank deposit (NEOBEE account), Bank transfer, Cheque, Mobile banking |
 | Investment status | `pending` → `confirmed` (investor self-confirms) |
+| Lead reference format | `NB-LEAD-XXXX` (4 chars from the same unambiguous alphabet) |
+| Lead status | `NEW` → `CONTACTED` (staff mark after calling; leads are never deleted) |
 
 ### Open items (as originally written)
 Open items the prototype left ambiguous — confirm with the human before implementing, do not silently pick one:
@@ -62,19 +62,23 @@ Two items remain open and unresolved: donation-percentage payout mechanics, and 
 - Money math lives in one pure, unit-tested module, server-side only.
 - Every financial mutation writes an immutable ledger row. Corrections are new rows that reference the original, never in-place edits to historical rows.
 
-TODO(architect): this section may have contained additional rules that were not captured before the overwrite.
+Formatting, amount-in-words, and the category-threshold derivations are specified in `.claude/skills/neobee-money-math/SKILL.md` — read it before touching any money code.
 
 ## 5. Data model
-The implemented Prisma schema lives at `prisma/schema.prisma` with models `Staff`, `Investor`, `Investment`, `Transaction`, `InstallmentSchedule`, `AuditLog`, and `Setting`, and that `.claude/skills/neobee-ledger-conventions/SKILL.md` documents their relationships and the ledger rules.
+The implemented Prisma schema lives at `prisma/schema.prisma` with models `Staff`, `Investor`, `Investment`, `InvestmentRequest`, `Transaction`, `InstallmentSchedule`, `AuditLog`, `Setting`, and `Lead`. `.claude/skills/neobee-ledger-conventions/SKILL.md` documents the financial relationships and ledger rules.
 
-TODO(architect): the original section's prose was lost; it deferred to the backend prompt for the full Prisma spec.
+Migrations (in `prisma/migrations/`, apply with `pnpm db:deploy`):
+- `0_init` — schema plus the `investment_uid_seq` sequence (unique IDs come from the sequence inside the registration transaction, never from row counts).
+- `1_rls` — Supabase RLS policies (defense-in-depth; see `RUNBOOK.md` §12 for which mode runs where).
+- `2_investment_requests` — the investor request → staff approval workflow.
+- `3_leads` — public interest leads (`Lead` model, `NB-LEAD-XXXX` refs, staff `NEW → CONTACTED` pipeline).
 
 ## 6. Auth & roles
 The prototype has **zero auth** — anyone who opens it can register, delete, and confirm records. That does not carry over. Minimum roles for v1:
 
-- **Public (unauthenticated):** landing/about page, verify-by-code lookup, aggregate progress stats (total raised, % of target — no personal data).
-- **Investor (phone/OTP via Supabase Auth):** sees only their own investments/receipts; can confirm their own pending record. Confirming someone else's record must never be possible just by knowing the code — decide whether "confirm" requires investor login or stays code-based, and if code-based, rate-limit and log it.
-- **Staff/Finance (admin):** registers deposits, sees the full register, never deletes a record (financial data isn't deleted — add a `voided` status/reason instead, if that capability is needed at all).
+- **Public (unauthenticated):** marketing pages (home, about, gallery), verify-by-code lookup (rate-limited per IP, audited), the "Become a Shareholder" lead form (`/interest` → `Lead`), and aggregate progress stats (total raised, % of target — no personal data).
+- **Investor (phone/OTP via Supabase Auth):** sees only their own investments/receipts; can confirm their own pending record; submits investment requests that staff approve (`/portal/invest` → `InvestmentRequest` → admin queue). Confirming someone else's record must never be possible just by knowing the code.
+- **Staff/Finance (admin):** registers deposits, reviews the approval queue (`/admin/requests`), works the interest-lead pipeline (`/admin/leads`), edits runtime share price / incentive / targets (`/admin/settings`), sees the full register — never deletes a record (financial data isn't deleted; a `voided` status would be the pattern if that capability is ever needed).
 
 Confirmation requires an authenticated investor session plus an ownership check, and knowing the verification code alone is never sufficient.
 
@@ -82,13 +86,16 @@ Confirmation requires an authenticated investor session plus an ownership check,
 - Unit tests for the money-math module and category derivation are mandatory. Integration tests for the register/confirm/verify API routes.
 - Server Actions or Route Handlers for all mutations — no client-side Prisma.
 - Zod (or equivalent) validation at every server entry point, mirroring the business rules table above.
-
-TODO(architect): further conventions from this section may have been lost.
+- Every UI string lives in `messages/en.json` AND `messages/bn.json`, added in the same change; `pnpm check:i18n` enforces parity. Numbers are pre-formatted to strings before `t()` (see `FRONTEND.md` §4).
+- Admin table filters and pagination are URL state (plain GET forms), not React state.
+- `pnpm lint` (ESLint + `check:i18n` + `check:env`), `pnpm test`, `tsc --noEmit`, and `pnpm build` must pass before any work is called done.
+- No new npm dependency without flagging the name and version to the human first.
+- `done_by_zcode/`, `reference/`, and `screenshots/` are read-only reference material (excluded from tsconfig and ESLint). Never import from them, never build against them, never delete them.
 
 ## 8. Environment & secrets
-Real `.env` files are never read, printed, or committed; `.env.example` is the only environment file kept in the repository; secrets are never sent to third-party model APIs.
+Real `.env` files are never read, printed, or committed; `.env.example` is the only environment file kept in the repository; secrets are never sent to third-party model APIs. `pnpm check:env` fails on drift between `.env.example` and what the code actually reads.
 
-TODO(architect): the original section's content was lost; the three rules above are a conservative reconstruction and the original likely listed the specific expected variables.
+The expected variables (documented with purpose in `.env.example` and `RUNBOOK.md` §3): `DATABASE_URL`, optional `DIRECT_URL` (pooled-connection override for migrations), optional `NEOBEE_DB_PROVIDER` (`supabase` | `generic`), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, optional `SEED_ALLOW` (production seeding override), optional `DEMO_LOGIN` (demo login outside development).
 
 ## 9. Project-level skills
 This repo should have the following skills available to the coding agent (see the "Skills" section at the end of each prompt file for how each is used):
@@ -106,7 +113,17 @@ In addition, create two **custom project skills** early, since this project has 
 Both custom skills now exist at those paths, created 2026-08-20.
 
 ## 10. Guardrails
-TODO(architect): this section's content was entirely lost and is not reconstructable. It has deliberately not been guessed at — a fabricated guardrail would be worse than a visible gap.
+
+Enforced on every change — no exceptions for small diffs:
+
+- **No commit, no push, no force-push without the human's explicit go-ahead.** Work happens in the working tree or on a feature branch; the human reviews the diff first.
+- **No destructive database operations** — no `prisma migrate reset`, no `DROP`/`TRUNCATE`, no overwriting seed data. Migrations must be additive or explicitly approved; apply with `pnpm db:deploy`.
+- **No new npm dependency without flagging the name and version first.** No hand-editing lockfiles.
+- **No disabling lint rules or type-checks to force a green build** (no blanket `eslint-disable`, no `@ts-ignore` to make errors vanish).
+- **No deploy commands** (Vercel, production migrations, DNS/dashboard changes) without explicit confirmation.
+- **Secrets stay out of context**: never open, print, or forward real `.env` values, keys, tokens, or connection strings — including into subagent prompts. `.env.example` is the only environment file that may be read.
+- **Never edit generated code** (`lib/generated/` is Prisma output; change `prisma/schema.prisma` and run `pnpm db:generate`).
+- **Never import from reference material** (`done_by_zcode/`, `reference/`, `screenshots/`) and never treat prototype copy as a spec override — `AGENTS.md` business rules win over anything in the prototypes.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

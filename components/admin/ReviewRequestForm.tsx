@@ -15,7 +15,7 @@ import {
   MAX_SHARES,
   MIN_SHARES 
 } from '@/lib/money';
-import { approveRequestAction, rejectRequestAction, type ReviewState } from '@/app/[locale]/(site)/admin/requests/actions';
+import { approveRequestAction, rejectRequestAction, type ReviewState } from '@/app/[locale]/(dash)/admin/requests/actions';
 import type { RequestForReview } from '@/lib/queries';
 
 const initialReviewState: ReviewState = { ok: false, fieldErrors: {} };

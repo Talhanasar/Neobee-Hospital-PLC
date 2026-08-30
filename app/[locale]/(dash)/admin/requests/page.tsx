@@ -53,7 +53,16 @@ export default async function AdminRequestsPage({ params }: { params: Promise<{ 
                       </Link>
                       <div className="text-xs text-ink-soft num">{row.investorPhone}</div>
                     </td>
-                    <td className={['px-4 py-3 border-b border-line text-sm align-middle', last ? 'border-b-0' : ''].join(' ')}>{row.shares}</td>
+                    <td className={['px-4 py-3 border-b border-line text-sm align-middle', last ? 'border-b-0' : ''].join(' ')}>
+                      {row.kind === 'PAYMENT' ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded bg-violet-soft text-violet">
+                          <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-current" />
+                          {t('kindPayment')}
+                        </span>
+                      ) : (
+                        row.shares
+                      )}
+                    </td>
                     <td className={['px-4 py-3 border-b border-line text-sm align-middle', last ? 'border-b-0' : ''].join(' ')}>
                       {row.entrepreneurRequested ? (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded bg-blue-soft text-blue">

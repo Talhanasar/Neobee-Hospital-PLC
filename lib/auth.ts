@@ -1,8 +1,10 @@
 import type { Investor, Staff } from '@/lib/generated/prisma/client';
 import { isAuthApiError } from '@supabase/supabase-js';
 import { cache } from 'react';
+import { cookies } from 'next/headers';
 import { prisma } from '@/lib/db';
 import { createClient } from '@/lib/supabase/server';
+import { demoInvestorForAuthUser, demoStaffForAuthUser, isDemoData } from '@/data/demo/store';
 
 export class AuthError extends Error {
   readonly status: 401 | 403;
@@ -33,6 +35,14 @@ function reportAuthFailure(error: unknown): void {
 }
 
 export async function getAuthUser(): Promise<{ id: string } | null> {
+  // Demo mode: a signed cookie stands in for the Supabase session —
+  // the demo presentation must run with zero external dependencies.
+  if (isDemoData()) {
+    const demoRole = (await cookies()).get('neobee-demo-role')?.value;
+    if (demoRole === 'investor') return { id: 'demo-auth-investor' };
+    if (demoRole === 'admin') return { id: 'demo-auth-admin' };
+    return null;
+  }
   const supabase = await createClient();
   try {
     const { data, error } = await supabase.auth.getUser();
@@ -58,6 +68,7 @@ async function loadAuthUserId(): Promise<string> {
 }
 
 async function getStaffForUser(authUserId: string): Promise<Staff | null> {
+  if (isDemoData()) return demoStaffForAuthUser(authUserId) as unknown as Staff | null;
   return prisma.staff.findUnique({ where: { authUserId } });
 }
 
@@ -80,6 +91,11 @@ export async function requireAdmin(): Promise<Staff> {
 
 export async function requireInvestor(): Promise<Investor> {
   const authUserId = await loadAuthUserId();
+  if (isDemoData()) {
+    const demoInvestor = demoInvestorForAuthUser(authUserId);
+    if (!demoInvestor) throw new AuthError('Forbidden', 403);
+    return demoInvestor as unknown as Investor;
+  }
   const investor = await prisma.investor.findUnique({ where: { authUserId } });
   if (!investor) {
     throw new AuthError('Forbidden', 403);
@@ -88,6 +104,11 @@ export async function requireInvestor(): Promise<Investor> {
 }
 
 export async function assertOwnsInvestment(investorId: string, investmentId: string): Promise<void> {
+  if (isDemoData()) {
+    const { demoAssertOwnsInvestment } = await import('@/data/demo/store');
+    if (!demoAssertOwnsInvestment(investorId, investmentId)) throw new AuthError('Forbidden', 403);
+    return;
+  }
   const investment = await prisma.investment.findUnique({ where: { id: investmentId } });
   if (!investment || investment.investorId !== investorId) {
     throw new AuthError('Forbidden', 403);
@@ -107,7 +128,9 @@ export const getSessionContext = cache(
     }
     const [staff, investor] = await Promise.all([
       getStaffForUser(user.id),
-      prisma.investor.findUnique({ where: { authUserId: user.id } }),
+      isDemoData()
+        ? Promise.resolve(demoInvestorForAuthUser(user.id) as unknown as Investor | null)
+        : prisma.investor.findUnique({ where: { authUserId: user.id } }),
     ]);
     const isStaff = staff !== null && staff.isActive;
     return {

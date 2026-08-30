@@ -3,15 +3,16 @@ export const dynamic = 'force-dynamic';
 import { redirect } from '@/i18n/navigation';
 import { requireInvestor, AuthError } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
-import { Card } from '@/components/ui/Card';
+import { listInvestmentsForInvestor } from '@/lib/queries';
 import InvestForm from '@/components/portal/InvestForm';
 
 type Props = { params: Promise<{ locale: string }> };
 
 export default async function InvestPage({ params }: Props) {
   const { locale } = await params;
+  let investor;
   try {
-    await requireInvestor();
+    investor = await requireInvestor();
   } catch (error) {
     if (error instanceof AuthError) {
       if (error.status === 401) redirect({ href: '/login', locale });
@@ -20,14 +21,26 @@ export default async function InvestPage({ params }: Props) {
     }
     throw error;
   }
-  const settings = await getSettings();
+  const [settings, investments] = await Promise.all([
+    getSettings(),
+    listInvestmentsForInvestor(investor.id),
+  ]);
+
   return (
     <div className="shell">
-      <Card className="max-w-[640px]">
-        <div className="space-y-5 p-6">
-          <InvestForm sharePrice={settings.SHARE_PRICE} incentivePerShare={settings.INCENTIVE_PER_SHARE} />
-        </div>
-      </Card>
+      <div className="nb-card max-w-[640px] p-6">
+        <InvestForm
+          sharePrice={settings.SHARE_PRICE}
+          incentivePerShare={settings.INCENTIVE_PER_SHARE}
+          investments={investments.map((row) => ({
+            id: row.id,
+            uid: row.uid,
+            category: row.category,
+            shares: row.shares,
+            status: row.status,
+          }))}
+        />
+      </div>
     </div>
   );
 }

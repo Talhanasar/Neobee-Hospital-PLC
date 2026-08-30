@@ -57,6 +57,21 @@ enum InvestmentRequestStatus {
   REJECTED
 }
 
+enum RequestKind {
+  SHARE_PURCHASE
+  PAYMENT
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+}
+
 model Staff {
   id              String    @id @default(uuid())
   authUserId      String    @unique // Supabase's internal auth.users schema is not portable across the planned migration to self-hosted Postgres.
@@ -71,6 +86,7 @@ model Staff {
   transactions    Transaction[]
   settings        Setting[]
   reviewedRequests InvestmentRequest[] @relation("ReviewedRequests")
+  contactedLeads  Lead[] @relation("ContactedLeads")
 }
 
 model Investor {
@@ -81,6 +97,7 @@ model Investor {
   email             String?
   nationalIdNumber  String?
   nationalIdFileKey String? // signed URLs are minted on demand and never persisted.
+  approvalStatus    ApprovalStatus @default(PENDING) // portal access gate: self-registrations wait for staff approval; linking a staff-known record auto-approves.
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -118,6 +135,7 @@ model Investment {
   transactions          Transaction[]
   installmentSchedules  InstallmentSchedule[]
   request               InvestmentRequest?
+  paymentRequests       InvestmentRequest[]   @relation("PaymentRequestTarget")
 
   @@index([investorId])
   @@index([status])
@@ -132,11 +150,14 @@ model InvestmentRequest {
   id                String                   @id @default(uuid())
   investorId        String
   investor          Investor                 @relation(fields: [investorId], references: [id], onDelete: Restrict)
+  kind              RequestKind              @default(SHARE_PURCHASE) // SHARE_PURCHASE = new subscription; PAYMENT = "payment done" deposit toward an existing investment (installment/share payment), recorded as a ledger Transaction on approval.
+  targetInvestmentId String?
+  targetInvestment  Investment?              @relation("PaymentRequestTarget", fields: [targetInvestmentId], references: [id], onDelete: Restrict)
   shares            Int
   entrepreneurRequested Boolean             @default(false)
   sharePrice        Int                      // snapshot at submission
   incentivePerShare Int                      // snapshot at submission
-  amount            Int                      // snapshot: shares * sharePrice
+  amount            Int                      // snapshot: shares * sharePrice (SHARE_PURCHASE) or the paid amount (PAYMENT)
   depositMethod     DepositMethod
   depositRef        String?
   depositDate       DateTime
@@ -153,6 +174,7 @@ model InvestmentRequest {
 
   @@index([investorId])
   @@index([status, createdAt])
+  @@index([targetInvestmentId])
 }
 
 model Transaction {
@@ -161,6 +183,8 @@ model Transaction {
   investment            Investment           @relation(fields: [investmentId], references: [id], onDelete: Restrict)
   amount                Int // SIGNED: DEPOSIT positive; REFUND negative; CORRECTION either sign; DISTRIBUTION negative and excluded from the principal cache.
   type                  TransactionType
+  depositMethod         DepositMethod? // payment provenance — how the money actually arrived (null for corrections).
+  depositDate           DateTime? // payment provenance — when the money actually arrived (null for corrections).
   relatedTransactionId  String?
   relatedTransaction    Transaction?         @relation("TransactionCorrections", fields: [relatedTransactionId], references: [id])
   corrections           Transaction[]        @relation("TransactionCorrections")
@@ -192,6 +216,24 @@ model InstallmentSchedule {
 
   @@index([investmentId])
   @@index([status, dueDate])
+}
+
+model Lead {
+  id                 String     @id @default(uuid())
+  ref                String     @unique // short public reference (NB-LEAD-XXXX) given to the submitter and shown in the staff pipeline.
+  name               String
+  phone              String // normalized to +8801XXXXXXXXX at the action layer; not unique — repeat submissions are soft-warned, not blocked.
+  email              String?
+  message            String?    @db.Text
+  status             LeadStatus @default(NEW)
+  contactedAt        DateTime?
+  contactedByStaffId String?
+  contactedByStaff   Staff?     @relation("ContactedLeads", fields: [contactedByStaffId], references: [id], onDelete: SetNull)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  @@index([phone])
+  @@index([status, createdAt])
 }
 
 model AuditLog {

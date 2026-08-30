@@ -1,5 +1,7 @@
 import { DEFAULT_SETTINGS, type SettingKey } from '@/lib/money';
 import { prisma } from '@/lib/db';
+import { isDemoData } from '@/data/demo/store';
+import { DEMO_SETTINGS } from '@/data/demo/dataset';
 
 type SettingRow = {
   key: string;
@@ -46,6 +48,7 @@ function buildSettings(rows: SettingRow[]): Settings {
 }
 
 export async function getSettings(client: SettingsClient = defaultSettingsClient): Promise<Settings> {
+  if (isDemoData()) return { ...DEMO_SETTINGS };
   const rows = await client.setting.findMany();
   return buildSettings(rows);
 }

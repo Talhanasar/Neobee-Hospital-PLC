@@ -3,10 +3,11 @@
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
-import { Button, buttonClasses } from '@/components/ui/Button';
+import { btnClasses } from '@/components/ui/bits';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Money } from '@/components/ui/Money';
+import { BadgeCheckIcon, SearchIcon, SearchXIcon } from '@/components/ui/icons';
 
 type Result = {
   uid: string;
@@ -19,6 +20,13 @@ type Result = {
   depositDate: string;
 };
 
+const dt = 'font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft';
+const dd = 'mt-0.5 font-mono text-sm text-ink';
+
+/**
+ * Public code/UID lookup against the real register API. Confirms a
+ * verification code or shareholder unique ID exists — nothing more.
+ */
 export default function VerifyLookup() {
   const t = useTranslations('verify');
   const [value, setValue] = React.useState('');
@@ -55,29 +63,101 @@ export default function VerifyLookup() {
     }
   };
 
-  return <div className="space-y-5">
-    <form onSubmit={submit} className="flex gap-2.5">
-      <label className="sr-only" htmlFor="verify-input">{t('inputLabel')}</label>
-      <input id="verify-input" value={value} onChange={(e) => setValue(e.target.value)} placeholder={t('placeholder')} aria-label={t('inputLabel')} className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3.5 py-2.5 text-ink placeholder:text-ink-soft/70 focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2" />
-      <Button type="submit" disabled={loading}>{loading ? t('checking') : t('submit')}</Button>
-    </form>
-    <div role="status" aria-live="polite">
-      {error ? <div className="rounded-lg px-3.5 py-2.5 text-[13px] mt-3.5 bg-[#FBE4E2] text-[#B3261E]">{error}</div> : null}
-      {result ? <div className="bg-panel border border-line rounded-card p-6">
-        <div className="flex flex-wrap items-center gap-2.5 mb-4">
-          <h3 className="text-[20px] font-semibold">{result.investorName}</h3>
-          <CategoryBadge category={result.category} />
-          <StatusBadge status={result.status} />
+  return (
+    <div className="mx-auto w-full">
+      <div className="nb-card p-6 sm:p-8">
+        <p className="text-sm leading-relaxed text-ink-soft">{t('lead')}</p>
+
+        <form className="mt-5 flex gap-2" onSubmit={submit}>
+          <label htmlFor="verify-input" className="sr-only">
+            {t('inputLabel')}
+          </label>
+          <input
+            id="verify-input"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={t('placeholder')}
+            aria-label={t('inputLabel')}
+            autoComplete="off"
+            className="nb-input min-w-0 flex-1 font-mono uppercase tnum"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className={`${btnClasses('primary', 'md')} shrink-0 focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2`}
+          >
+            <SearchIcon size={16} aria-hidden="true" />
+            {loading ? t('checking') : t('submit')}
+          </button>
+        </form>
+
+        <div role="status" aria-live="polite">
+          {error ? (
+            <div className="mt-6 rounded-[14px] border border-amber/30 bg-amber-soft/60 p-5">
+              <div className="flex items-center gap-2.5">
+                <SearchXIcon size={18} className="text-amber" aria-hidden="true" />
+                <p className="font-semibold text-ink">{error}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {result ? (
+            <div className="mt-6 rounded-[14px] border border-green/30 bg-green-soft/60 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <BadgeCheckIcon size={18} className="text-green" aria-hidden="true" />
+                  <p className="font-semibold text-ink">{result.investorName}</p>
+                </div>
+                <StatusBadge status={result.status} />
+              </div>
+
+              <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+                <div>
+                  <dt className={dt}>{t('uid')}</dt>
+                  <dd className={dd}>{result.uid}</dd>
+                </div>
+                <div>
+                  <dt className={dt}>{t('code')}</dt>
+                  <dd className={dd}>{result.code}</dd>
+                </div>
+                <div>
+                  <dt className={dt}>{t('date')}</dt>
+                  <dd className={dd}>{result.depositDate.slice(0, 10)}</dd>
+                </div>
+                <div>
+                  <dt className={dt}>{t('shares')}</dt>
+                  <dd className={dd}>{result.shares}</dd>
+                </div>
+                <div>
+                  <dt className={dt}>{t('amount')}</dt>
+                  <dd className={`${dd} font-semibold`}>
+                    <Money value={result.amount} />
+                  </dd>
+                </div>
+                <div className="flex items-end">
+                  <CategoryBadge category={result.category} />
+                </div>
+              </dl>
+
+              {result.status === 'PENDING' ? (
+                <div className="mt-4 rounded-xl border border-amber/40 bg-amber-soft/70 p-3.5 text-[13px] text-ink">
+                  {t('pendingNotice')}{' '}
+                  <Link
+                    href="/portal"
+                    className={`${btnClasses('outline', 'sm')} ml-1 align-middle focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2`}
+                  >
+                    {t('signInToConfirm')}
+                  </Link>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl px-3.5 py-2.5 text-[13px] text-green">{t('confirmedNotice')}</div>
+              )}
+            </div>
+          ) : null}
         </div>
-        <dl className="grid gap-y-2 gap-x-3.5 [grid-template-columns:170px_1fr] max-md:grid-cols-1 max-md:[grid-template-columns:1fr]">
-          <dt className="text-ink-soft max-md:mt-2.5">{t('uid')}</dt><dd className="num">{result.uid}</dd>
-          <dt className="text-ink-soft max-md:mt-2.5">{t('code')}</dt><dd className="num">{result.code}</dd>
-          <dt className="text-ink-soft max-md:mt-2.5">{t('shares')}</dt><dd className="num">{result.shares}</dd>
-          <dt className="text-ink-soft max-md:mt-2.5">{t('amount')}</dt><dd><Money value={result.amount} /></dd>
-          <dt className="text-ink-soft max-md:mt-2.5">{t('date')}</dt><dd className="num">{result.depositDate.slice(0, 10)}</dd>
-        </dl>
-        {result.status === 'PENDING' ? <div className="rounded-lg px-3.5 py-2.5 text-[13px] mt-3.5 bg-amber-soft text-ink">{t('pendingNotice')} <Link href="/portal" className={buttonClasses('primary', 'sm') + ' ml-2 align-middle'}>{t('signInToConfirm')}</Link></div> : <div className="rounded-lg px-3.5 py-2.5 text-[13px] mt-3.5 bg-green-soft text-green">{t('confirmedNotice')}</div>}
-      </div> : null}
+      </div>
+
+      <p className="mt-4 text-center text-xs text-ink-soft">{t('note')}</p>
     </div>
-  </div>;
+  );
 }

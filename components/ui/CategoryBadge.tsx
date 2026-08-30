@@ -1,7 +1,11 @@
-import { getTranslations } from 'next-intl/server';
+'use client';
 
-export async function CategoryBadge({ category }: { category: 'SHAREHOLDER' | 'PREMIUM' | 'DIRECTOR' }) {
-  const t = await getTranslations('categories');
+import { useTranslations } from 'next-intl';
+
+// Sync + client-safe: this badge renders inside client forms (InvestForm
+// category preview), so it must never be an async server component.
+export function CategoryBadge({ category }: { category: 'SHAREHOLDER' | 'PREMIUM' | 'DIRECTOR' }) {
+  const t = useTranslations('categories');
   const classes = {
     SHAREHOLDER: 'bg-blue-soft text-blue',
     PREMIUM: 'bg-violet-soft text-violet',

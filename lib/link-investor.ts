@@ -17,10 +17,10 @@ export async function linkInvestorToAuthUser(authUserId: string, phone: string):
     if (investor.authUserId !== null && investor.authUserId !== authUserId) return { linked: false, investorId: null };
     if (investor.authUserId === null) {
       const updated = await tx.investor.update({ where: { id: investor.id }, data: { authUserId } });
+      // Audit only the actual link event — already-linked logins change nothing.
       await writeAuditLog({ actorType: ActorType.INVESTOR, actorId: authUserId, action: actionVerbs.investorLink, targetType: 'Investor', targetId: updated.id }, tx);
       return { linked: true, investorId: updated.id };
     }
-    await writeAuditLog({ actorType: ActorType.INVESTOR, actorId: authUserId, action: actionVerbs.investorLink, targetType: 'Investor', targetId: investor.id }, tx);
     return { linked: true, investorId: investor.id };
   });
 }

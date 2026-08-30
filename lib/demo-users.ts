@@ -1,6 +1,8 @@
 // Server-only demo-login configuration. No client importers — the action layer
 // is the only thing that reads credentials, so they never reach the browser.
 
+import { isDemoData } from '@/data/demo/store';
+
 export const DEMO_INVESTOR = {
   // +880179… prefix avoids colliding with base-seed investors (+880170…).
   // Phone stays for the Investor DB row linkage (find-by-phone); auth is email-based
@@ -18,8 +20,11 @@ export const DEMO_ADMIN = {
   name: 'Demo Admin',
 } as const;
 
-// Demo is for local/presentation use; hard-off in production unless explicitly
-// enabled via DEMO_LOGIN=true.
+// The demo tour is hard-off unless explicitly opted in via env: either the
+// in-memory demo dataset (DEMO_DATA=true, e.g. via scripts/demo.mjs) or
+// seeded Supabase demo accounts (DEMO_LOGIN=true). No NODE_ENV shortcut — a
+// plain dev run against real data shows no demo UI. The login page and the
+// demo actions share this exact gate so the tiles can never render dead.
 export function isDemoLoginEnabled(): boolean {
-  return process.env.DEMO_LOGIN === 'true' || process.env.NODE_ENV === 'development';
+  return isDemoData() || process.env.DEMO_LOGIN === 'true';
 }

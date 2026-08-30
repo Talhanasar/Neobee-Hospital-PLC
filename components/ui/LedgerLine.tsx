@@ -28,8 +28,8 @@ export async function LedgerLine({ confirmedAmount, targetAmount, registeredCoun
         <div className="flex flex-wrap md:flex-nowrap items-center gap-3 min-w-0 md:flex-1">
           <span className="num font-mono text-[17px] font-semibold text-ink whitespace-nowrap">{bdt(confirmedAmount)}</span>
           <span className="font-mono text-[10px] uppercase tracking-wider text-ink-soft whitespace-normal md:whitespace-nowrap block md:inline">{t('ledgerAmount', { amount: bdt(confirmedAmount), target: bdt(targetAmount) })}</span>
-          <div className="flex-1 h-3 min-w-[60px] bg-line rounded-full overflow-hidden">
-            <div className="h-full bg-honey" style={{ width: fill, minWidth: '4px' }} />
+            <div className="flex-1 h-3 min-w-[60px] bg-line rounded-full overflow-hidden">
+              <div className="h-full bg-honey animate-grow-x" style={{ width: fill, minWidth: '4px' }} />
           </div>
           <span className="num font-mono text-[13px] font-bold text-ink whitespace-nowrap">{pct.toFixed(1)}%</span>
           <div className="flex flex-wrap items-center gap-3">

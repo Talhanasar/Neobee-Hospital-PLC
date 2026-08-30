@@ -3,8 +3,13 @@
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { AuthError, requireInvestor } from '@/lib/auth';
-import { submitInvestmentRequest, type SubmitInvestmentRequestInput } from '@/lib/requests';
-import { submitInvestmentRequestSchema } from '@/lib/validation';
+import {
+  submitInvestmentRequest,
+  submitPaymentRequest,
+  type SubmitInvestmentRequestInput,
+} from '@/lib/requests';
+import { submitInvestmentRequestSchema, submitPaymentRequestSchema } from '@/lib/validation';
+import { demoCreateRequest, isDemoData } from '@/data/demo/store';
 import { ZodError } from 'zod';
 
 export type SubmitInvestmentRequestState =
@@ -33,18 +38,9 @@ export async function submitInvestmentRequestAction(
     }
     throw error;
   }
-
-  const raw = {
-    shares: formData.get('shares'),
-    entrepreneurRequested: formData.get('entrepreneurRequested') === 'on',
-    depositMethod: formData.get('depositMethod'),
-    depositRef: (() => { const v = String(formData.get('depositRef') ?? '').trim(); return v || undefined; })(),
-    depositDate: formData.get('depositDate'),
-    note: (() => { const v = String(formData.get('note') ?? '').trim(); return v || undefined; })(),
-  };
-
-  const parsed = submitInvestmentRequestSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false, fieldErrors: flattenFieldErrors(parsed.error) };
+  if (investor.approvalStatus === 'PENDING') {
+    return { ok: false, fieldErrors: {}, formError: 'pendingApproval' };
+  }
 
   const h = await headers();
   const realIp = h.get('x-real-ip')?.trim() ?? null;
@@ -52,7 +48,82 @@ export async function submitInvestmentRequestAction(
   const forwardedIp = forwardedFor ? forwardedFor.split(',')[0]?.trim() ?? null : null;
   const requestMeta = { ipAddress: realIp ?? forwardedIp, userAgent: h.get('user-agent') };
 
+  const common = {
+    depositMethod: formData.get('depositMethod'),
+    depositRef: (() => { const v = String(formData.get('depositRef') ?? '').trim(); return v || undefined; })(),
+    depositDate: formData.get('depositDate'),
+    note: (() => { const v = String(formData.get('note') ?? '').trim(); return v || undefined; })(),
+  };
+
   try {
+    if (formData.get('kind') === 'PAYMENT') {
+      const parsed = submitPaymentRequestSchema.safeParse({
+        targetInvestmentId: formData.get('targetInvestmentId'),
+        amount: formData.get('amount'),
+        ...common,
+      });
+      if (!parsed.success) return { ok: false, fieldErrors: flattenFieldErrors(parsed.error) };
+
+      if (isDemoData()) {
+        const demoResult = demoCreateRequest({
+          investorId: investor.id,
+          kind: 'PAYMENT',
+          targetInvestmentId: parsed.data.targetInvestmentId,
+          amount: parsed.data.amount,
+          depositMethod: parsed.data.depositMethod,
+          depositRef: parsed.data.depositRef,
+          depositDate: parsed.data.depositDate,
+          note: parsed.data.note,
+        });
+        if (demoResult === 'cap') return { ok: false, fieldErrors: {}, formError: 'openRequestCap' };
+        if (demoResult === 'target') return { ok: false, fieldErrors: {}, formError: 'targetInvestment' };
+        revalidatePath('/portal');
+        revalidatePath('/admin/requests');
+        return { ok: true, requestId: demoResult };
+      }
+
+      const request = await submitPaymentRequest(
+        {
+          investorId: investor.id,
+          targetInvestmentId: parsed.data.targetInvestmentId,
+          amount: parsed.data.amount,
+          depositMethod: parsed.data.depositMethod,
+          depositRef: parsed.data.depositRef,
+          depositDate: parsed.data.depositDate,
+          note: parsed.data.note,
+        },
+        requestMeta,
+      );
+      revalidatePath('/portal');
+      revalidatePath('/admin/requests');
+      return { ok: true, requestId: request.id };
+    }
+
+    const parsed = submitInvestmentRequestSchema.safeParse({
+      shares: formData.get('shares'),
+      entrepreneurRequested: formData.get('entrepreneurRequested') === 'on',
+      ...common,
+    });
+    if (!parsed.success) return { ok: false, fieldErrors: flattenFieldErrors(parsed.error) };
+
+    if (isDemoData()) {
+      const demoResult = demoCreateRequest({
+        investorId: investor.id,
+        kind: 'SHARE_PURCHASE',
+        shares: parsed.data.shares,
+        entrepreneurRequested: parsed.data.entrepreneurRequested,
+        depositMethod: parsed.data.depositMethod,
+        depositRef: parsed.data.depositRef,
+        depositDate: parsed.data.depositDate,
+        note: parsed.data.note,
+      });
+      if (demoResult === 'cap') return { ok: false, fieldErrors: {}, formError: 'openRequestCap' };
+      if (demoResult === 'entrepreneurMin') return { ok: false, fieldErrors: {}, formError: 'entrepreneurMinShares' };
+      revalidatePath('/portal');
+      revalidatePath('/admin/requests');
+      return { ok: true, requestId: demoResult };
+    }
+
     const input: SubmitInvestmentRequestInput = {
       investorId: investor.id,
       shares: parsed.data.shares,
@@ -64,6 +135,7 @@ export async function submitInvestmentRequestAction(
     };
     const request = await submitInvestmentRequest(input, requestMeta);
     revalidatePath('/portal');
+    revalidatePath('/admin/requests');
     return { ok: true, requestId: request.id };
   } catch (error) {
     if (error instanceof Error) {
@@ -75,6 +147,12 @@ export async function submitInvestmentRequestAction(
       }
       if (error.message.includes('Shares must be between')) {
         return { ok: false, fieldErrors: {}, formError: 'sharesRange' };
+      }
+      if (error.message.includes('Target investment')) {
+        return { ok: false, fieldErrors: {}, formError: 'targetInvestment' };
+      }
+      if (error.message.includes('Amount must be')) {
+        return { ok: false, fieldErrors: {}, formError: 'amountInvalid' };
       }
     }
     return { ok: false, fieldErrors: {}, formError: 'generic' };

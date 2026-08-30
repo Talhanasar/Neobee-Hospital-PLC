@@ -8,7 +8,7 @@ import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { Money } from '@/components/ui/Money';
 import { calculateAmount, calculateIncentive, deriveCategory, ENTREPRENEUR_MIN_SHARES, MAX_SHARES, MIN_SHARES } from '@/lib/money';
 import { useTranslations } from 'next-intl';
-import { registerInvestmentAction, type RegisterState } from '@/app/[locale]/(site)/admin/register/actions';
+import { registerInvestmentAction, type RegisterState } from '@/app/[locale]/(dash)/admin/register/actions';
 
 
 const initialState: RegisterState = { ok: false, fieldErrors: {} };

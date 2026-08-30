@@ -1,9 +1,11 @@
 import { prisma } from '@/lib/db';
 import { getRequestMetadata, writeAuditLog, actionVerbs } from '@/lib/audit';
+import { countRecentAttempts } from '@/lib/rate-limit';
 import { handleRouteError, jsonError } from '@/lib/http';
 import { verifyQuerySchema } from '@/lib/validation';
 import { ActorType } from '@/lib/generated/prisma/client';
 import { z } from 'zod';
+import { demoVerifyLookup, isDemoData } from '@/data/demo/store';
 
 const WINDOW_MS = 5 * 60 * 1000;
 const PER_IP_LIMIT = 20;
@@ -12,29 +14,29 @@ const GLOBAL_LIMIT = 250;
 // ponytail: ceiling is a DB-backed counter; best-effort against casual enumeration, with Redis/Upstash + WAF as the upgrade path.
 export async function GET(request: Request): Promise<Response> {
   try {
-    const meta = getRequestMetadata(request);
     const query = verifyQuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
     if (!query.success) {
       return Response.json({ error: z.treeifyError(query.error) }, { status: 400 });
     }
+    if (isDemoData()) {
+      const record = demoVerifyLookup(query.data.code, query.data.uid);
+      if (!record) return jsonError(404, 'NOT_FOUND', 'Record not found');
+      return Response.json(record);
+    }
+    const meta = getRequestMetadata(request);
 
-    const windowStart = new Date(Date.now() - WINDOW_MS);
-    const recentByIp = await prisma.auditLog.count({
-      where: {
-        ipAddress: meta.ipAddress,
-        action: actionVerbs.investmentVerifyLookup,
-        createdAt: { gte: windowStart },
-      },
+    const recentByIp = await countRecentAttempts({
+      action: actionVerbs.investmentVerifyLookup,
+      ipAddress: meta.ipAddress,
+      windowMs: WINDOW_MS,
     });
     if (recentByIp >= PER_IP_LIMIT) {
       return jsonError(429, 'RATE_LIMITED', 'Too many lookups');
     }
 
-    const recentGlobal = await prisma.auditLog.count({
-      where: {
-        action: actionVerbs.investmentVerifyLookup,
-        createdAt: { gte: windowStart },
-      },
+    const recentGlobal = await countRecentAttempts({
+      action: actionVerbs.investmentVerifyLookup,
+      windowMs: WINDOW_MS,
     });
     if (recentGlobal >= GLOBAL_LIMIT) {
       return jsonError(429, 'RATE_LIMITED', 'Too many lookups');

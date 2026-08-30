@@ -6,6 +6,7 @@ import { requireStaff } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
 import { getRequestForReview } from '@/lib/queries';
 import { ReviewRequestForm } from '@/components/admin/ReviewRequestForm';
+import { PaymentRequestReview } from '@/components/admin/PaymentRequestReview';
 import { Money } from '@/components/ui/Money';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -48,6 +49,92 @@ export default async function AdminRequestDetailPage(
         </Link>
       </div>
 
+      {request.kind === 'PAYMENT' ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <section className="bg-panel border border-line rounded-card p-4">
+              <h3 className="font-semibold text-ink mb-3">{t('sectionInvestor')}</h3>
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-ink-soft">{t('colInvestor')}</dt>
+                  <dd className="font-semibold">{request.investorName}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-soft">{t('colPhone')}</dt>
+                  <dd className="font-mono text-ink">{request.investorPhone}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-soft">{t('colInvestorId')}</dt>
+                  <dd className="font-mono text-ink">{request.investorId}</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="bg-panel border border-line rounded-card p-4">
+              <h3 className="font-semibold text-ink mb-3">{t('paymentSectionTitle')}</h3>
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-ink-soft">{t('paymentTargetInvestment')}</dt>
+                  <dd className="font-mono font-semibold">{request.targetInvestmentUid ?? '—'}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-soft">{t('colAmount')}</dt>
+                  <dd className="font-semibold"><Money value={request.amount} /></dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-soft">{t('colDepositMethod')}</dt>
+                  <dd className="font-semibold">{methodT(request.depositMethod)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-soft">{t('colDepositRef')}</dt>
+                  <dd className="font-mono text-ink">{request.depositRef ?? '—'}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-ink-soft">{t('colDepositDate')}</dt>
+                  <dd className="font-semibold">{request.depositDate.toISOString().slice(0, 10)}</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="bg-panel border border-line rounded-card p-4">
+              <h3 className="font-semibold text-ink mb-3">{t('sectionInvestorNote')}</h3>
+              <p className="text-ink-soft whitespace-pre-wrap text-sm">{request.note ?? t('noNote')}</p>
+            </section>
+          </div>
+
+          <div className="rounded-card border border-line bg-honey-soft/60 px-4 py-3 text-sm text-ink">
+            {t('paymentApproveExplain')}
+          </div>
+
+          {isSubmitted ? (
+            <PaymentRequestReview requestId={request.id} />
+          ) : (
+            <div className="bg-panel border border-line rounded-card p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <StatusBadge status={request.status === 'APPROVED' ? 'CONFIRMED' : 'PENDING'} />
+                <span className="text-sm text-ink-soft">
+                  {request.status === 'APPROVED' ? t('statusApproved') : t('statusRejected')}
+                </span>
+              </div>
+              <dl className="grid gap-3 md:grid-cols-2 text-sm">
+                <div>
+                  <dt className="text-ink-soft">{t('colReviewedBy')}</dt>
+                  <dd className="font-semibold">{request.reviewedByName ?? t('unknown')}</dd>
+                </div>
+                <div>
+                  <dt className="text-ink-soft">{t('colReviewedAt')}</dt>
+                  <dd className="font-semibold">{request.reviewedAt?.toISOString().slice(0, 16).replace('T', ' ') ?? '—'}</dd>
+                </div>
+                <div className="md:col-span-2">
+                  <dt className="text-ink-soft">{t('colReviewNote')}</dt>
+                  <dd className="font-semibold whitespace-pre-wrap">{request.reviewNote ?? t('noReviewNote')}</dd>
+                </div>
+              </dl>
+            </div>
+          )}
+        </>
+      ) : (
+      <>
       {priceDiffers && (
         <div className="bg-amber-soft border border-amber rounded-card px-4 py-3" role="alert">
           <p className="font-semibold text-ink">{t('priceSnapshotWarningTitle')}</p>
@@ -184,6 +271,8 @@ export default async function AdminRequestDetailPage(
             ) : null}
           </dl>
         </div>
+      )}
+      </>
       )}
     </div>
   );

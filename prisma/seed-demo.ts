@@ -20,6 +20,77 @@ import { DEMO_INVESTOR, DEMO_ADMIN } from '../lib/demo-users';
 const isProduction = process.env.NODE_ENV === 'production';
 const allowSeed = process.env.SEED_ALLOW === 'true';
 
+// ── Cleanup mode ─────────────────────────────────────────────────
+// `npx tsx prisma/seed-demo.ts --cleanup` removes every demo-marked row
+// (phones +88017900000*, UIDs NEO-90*, @neobee.test emails/staff) and the
+// two demo auth users from hosted Supabase. Tolerant: missing rows are fine.
+if (process.argv.includes('--cleanup')) {
+  void cleanup().then(() => process.exit(0));
+} else {
+  void main();
+}
+
+async function deleteDemoAuthUsers(): Promise<void> {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!serviceRoleKey || !supabaseUrl) {
+    console.warn('Cleanup: skipping auth-user deletion (no service key/URL).');
+    return;
+  }
+  const { createClient } = await import('@supabase/supabase-js');
+  const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const demoEmails: string[] = [DEMO_INVESTOR.email, DEMO_ADMIN.email];
+  const { data: list, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
+  if (error) {
+    console.warn(`Cleanup: could not list auth users: ${error.message}`);
+    return;
+  }
+  for (const user of list.users) {
+    if (user.email && demoEmails.includes(user.email.toLowerCase())) {
+      const { error: delError } = await admin.auth.admin.deleteUser(user.id);
+      console.log(`Cleanup: auth user ${user.email} ${delError ? `NOT deleted: ${delError.message}` : 'deleted'}.`);
+    }
+  }
+}
+
+async function cleanup(): Promise<void> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl) {
+    const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
+    try {
+      const demoInvestors = await prisma.investor.findMany({
+        where: { phone: { startsWith: '+88017900000' } },
+        select: { id: true },
+      });
+      const investorIds = demoInvestors.map((i) => i.id);
+      const demoInvestments = await prisma.investment.findMany({
+        where: { OR: [{ uid: { startsWith: 'NEO-90' } }, { investorId: { in: investorIds } }] },
+        select: { id: true },
+      });
+      const investmentIds = demoInvestments.map((i) => i.id);
+      const deletedTransactions = await prisma.transaction.deleteMany({ where: { investmentId: { in: investmentIds } } });
+      const deletedRequests = await prisma.investmentRequest.deleteMany({
+        where: { OR: [{ investorId: { in: investorIds } }, { targetInvestmentId: { in: investmentIds } }] },
+      });
+      const deletedInvestments = await prisma.investment.deleteMany({ where: { id: { in: investmentIds } } });
+      const deletedInvestors = await prisma.investor.deleteMany({ where: { id: { in: investorIds } } });
+      const deletedStaff = await prisma.staff.deleteMany({ where: { email: 'demo-admin@neobee.test' } });
+      const deletedLeads = await prisma.lead.deleteMany({ where: { ref: { startsWith: 'NB-LEAD-' } } });
+      console.log(
+        `Cleanup: removed ${deletedTransactions.count} transactions, ${deletedRequests.count} requests, ` +
+          `${deletedInvestments.count} investments, ${deletedInvestors.count} investors, ${deletedStaff.count} demo staff row, ${deletedLeads.count} leads.`,
+      );
+    } catch (error) {
+      console.warn(`Cleanup: DB cleanup failed (tolerated): ${error instanceof Error ? error.message : error}`);
+    } finally {
+      await prisma.$disconnect();
+    }
+  } else {
+    console.warn('Cleanup: no DATABASE_URL — skipping DB rows.');
+  }
+  await deleteDemoAuthUsers();
+}
+
 if (isProduction && !allowSeed) {
   console.error('Refusing to seed demo data in production. Set SEED_ALLOW=true only for explicit local approval.');
   process.exit(1);
@@ -33,6 +104,50 @@ const DEMO_PENDING_UID_SEQUENCE = 9002;
 
 const DEMO_CONFIRMED_CODE = 'NB-DEMOA';
 const DEMO_PENDING_CODE = 'NB-DEMOB';
+
+// Extra walk-in shareholders so the admin register and stats look alive.
+// No auth users — these are staff-registered investors, exactly like reality.
+const EXTRA_SHAREHOLDERS = [
+  {
+    phone: '+8801790000011',
+    name: 'Kamrul Hasan',
+    nid: 'DEMO-NID-0011',
+    uid: 'NEO-9011',
+    uidSequence: 9011,
+    code: 'NB-DEMOC',
+    shares: 100,
+    entrepreneur: true,
+    status: 'CONFIRMED' as const,
+    depositMethod: 'BANK_TRANSFER' as const,
+    depositRef: 'DEMO-003',
+  },
+  {
+    phone: '+8801790000012',
+    name: 'Nusrat Jahan',
+    nid: 'DEMO-NID-0012',
+    uid: 'NEO-9012',
+    uidSequence: 9012,
+    code: 'NB-DEMOD',
+    shares: 25,
+    entrepreneur: false,
+    status: 'CONFIRMED' as const,
+    depositMethod: 'BANK_DEPOSIT' as const,
+    depositRef: 'DEMO-004',
+  },
+  {
+    phone: '+8801790000013',
+    name: 'Shahana Akter',
+    nid: 'DEMO-NID-0013',
+    uid: 'NEO-9013',
+    uidSequence: 9013,
+    code: 'NB-DEMOE',
+    shares: 5,
+    entrepreneur: false,
+    status: 'PENDING' as const,
+    depositMethod: 'MOBILE_BANKING' as const,
+    depositRef: 'DEMO-005',
+  },
+] as const;
 
 async function ensureAuthUser(
   admin: Awaited<ReturnType<typeof import('../lib/supabase/admin').createAdminClient>>,
@@ -217,8 +332,8 @@ async function main() {
       // --- Two demo investments (idempotent by uid) ---
       const recentDate = new Date('2026-08-20T10:00:00.000Z');
 
-      // (a) CONFIRMED: 2 shares → SHAREHOLDER, 400000, confirmed.
-      const confirmedShares = 2;
+      // (a) CONFIRMED: 40 shares → PREMIUM, ৳80,00,000, investor-confirmed.
+      const confirmedShares = 40;
       const confirmedCategory = deriveCategory(confirmedShares);
       const confirmedAmount = calculateAmount(confirmedShares, sharePrice);
       const confirmedInvestment = await tx.investment.upsert({
@@ -281,8 +396,8 @@ async function main() {
         });
       }
 
-      // (b) PENDING: 5 shares → PREMIUM, 1000000, not confirmed.
-      const pendingShares = 5;
+      // (b) PENDING: 20 shares → PREMIUM, ৳40,00,000, awaiting investor confirmation.
+      const pendingShares = 20;
       const pendingCategory = deriveCategory(pendingShares);
       const pendingAmount = calculateAmount(pendingShares, sharePrice);
       const pendingInvestment = await tx.investment.upsert({
@@ -344,8 +459,123 @@ async function main() {
         });
       }
 
+      // (c) Extra walk-in shareholders — admin register + stats richness.
+      for (const person of EXTRA_SHAREHOLDERS) {
+        const extraInvestor = await tx.investor.upsert({
+          where: { phone: person.phone },
+          update: { name: person.name },
+          create: {
+            phone: person.phone,
+            name: person.name,
+            nationalIdNumber: person.nid,
+            authUserId: null, // staff-registered walk-in — no account yet
+          },
+        });
+        const category = deriveCategory(person.shares);
+        const amount = calculateAmount(person.shares, sharePrice);
+        const incentiveAmount = person.entrepreneur ? person.shares * incentivePerShare : 0;
+        const investment = await tx.investment.upsert({
+          where: { uid: person.uid },
+          update: {
+            investorId: extraInvestor.id,
+            shares: person.shares,
+            category,
+            isEntrepreneur: person.entrepreneur,
+            incentiveAmount,
+            sharePrice,
+            incentivePerShare,
+            amount,
+            depositMethod: person.depositMethod,
+            depositRef: person.depositRef,
+            depositDate: recentDate,
+            status: person.status,
+            recordedByStaffId: demoAdmin.id,
+          },
+          create: {
+            investorId: extraInvestor.id,
+            uid: person.uid,
+            uidSequence: person.uidSequence,
+            code: person.code,
+            shares: person.shares,
+            category,
+            isEntrepreneur: person.entrepreneur,
+            incentiveAmount,
+            sharePrice,
+            incentivePerShare,
+            amount,
+            depositMethod: person.depositMethod,
+            depositRef: person.depositRef,
+            depositDate: recentDate,
+            status: person.status,
+            notes: 'Demo seeded shareholder',
+            recordedByStaffId: demoAdmin.id,
+          },
+        });
+        const existingExtraTx = await tx.transaction.findFirst({
+          where: { investmentId: investment.id, type: 'DEPOSIT' },
+          select: { id: true },
+        });
+        if (!existingExtraTx) {
+          await tx.transaction.create({
+            data: {
+              investmentId: investment.id,
+              amount,
+              type: 'DEPOSIT',
+              recordedByStaffId: demoAdmin.id,
+              note: 'Demo seeded deposit ledger row',
+            },
+          });
+        }
+      }
+
+      // (d) One SUBMITTED payment report from the demo investor — populates
+      // "Your requests" in the portal and the staff approval queue.
+      const existingPaymentRequest = await tx.investmentRequest.findFirst({
+        where: { investorId: demoInvestor.id, kind: 'PAYMENT', status: 'SUBMITTED' },
+        select: { id: true },
+      });
+      if (!existingPaymentRequest) {
+        await tx.investmentRequest.create({
+          data: {
+            investorId: demoInvestor.id,
+            kind: 'PAYMENT',
+            targetInvestmentId: confirmedInvestment.id,
+            shares: 0,
+            entrepreneurRequested: false,
+            sharePrice,
+            incentivePerShare,
+            amount: 500000,
+            depositMethod: 'MOBILE_BANKING',
+            depositRef: 'BKX-DEMO-7788',
+            depositDate: new Date('2026-08-26T10:00:00.000Z'),
+            note: 'Installment no. 2 paid via bKTransaction — reference BKX-DEMO-7788',
+            status: 'SUBMITTED',
+          },
+        });
+      }
+
+      // (e) Interest leads — populate the admin leads pipeline and the
+      // sidebar "new leads" badge. Two NEW + one CONTACTED.
+      const DEMO_LEADS = [
+        { ref: 'NB-LEAD-DEMO', name: 'Sabbir Ahmed', phone: '+8801811000111', email: 'sabbir.ahmed@example.com', message: 'Want to visit the site office and discuss founding-entrepreneur entry.', status: 'NEW' as const },
+        { ref: 'NB-LEAD-K9LM', name: 'Farhana Yasmin', phone: '+8801933000222', email: 'farhana.y@example.com', message: 'Interested in a 5-share premium entry. Please call after 5pm.', status: 'NEW' as const },
+        { ref: 'NB-LEAD-QRTV', name: 'Mahbub Alam', phone: '+8801712000333', email: null, message: null, status: 'CONTACTED' as const },
+      ];
+      for (const lead of DEMO_LEADS) {
+        const existingLead = await tx.lead.findUnique({ where: { ref: lead.ref }, select: { id: true } });
+        if (!existingLead) {
+          await tx.lead.create({
+            data: {
+              ...lead,
+              contactedAt: lead.status === 'CONTACTED' ? new Date('2026-08-27T09:30:00.000Z') : null,
+              contactedByStaffId: lead.status === 'CONTACTED' ? demoAdmin.id : null,
+            },
+          });
+        }
+      }
+
       console.log(
-        'Demo seed complete: 1 admin staff, 1 investor, 2 investments (1 confirmed, 1 pending), 2 ledger rows. ' +
+        'Demo seed complete: 1 admin staff, 4 investors (1 demo + 3 walk-ins), 5 investments, ledger rows, 1 payment request, 3 interest leads. ' +
           (investorAuthUserId ? 'Auth users created.' : 'Auth users SKIPPED (no service key).'),
       );
     });
@@ -392,5 +622,3 @@ async function main() {
     await prisma.$disconnect();
   }
 }
-
-void main();

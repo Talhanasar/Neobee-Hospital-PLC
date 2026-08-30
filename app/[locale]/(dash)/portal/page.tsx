@@ -7,6 +7,7 @@ import { Card, CardHead } from '@/components/ui/Card';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Money } from '@/components/ui/Money';
+import { StatCard } from '@/components/ui/StatCard';
 import { buttonClasses } from '@/components/ui/Button';
 import ConfirmButton from '@/components/portal/ConfirmButton';
 import { getTranslations } from 'next-intl/server';
@@ -26,16 +27,45 @@ export default async function PortalPage({ params }: { params: Promise<{ locale:
   const rows = await listInvestmentsForInvestor(investor.id);
   const requests = await listRequestsForInvestor(investor.id);
   const hasContent = rows.length > 0 || requests.length > 0;
+  const totalAmount = rows.reduce((sum, r) => sum + r.amount, 0);
+  const totalShares = rows.reduce((sum, r) => sum + r.shares, 0);
+  const latest = rows[0] ?? null;
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div className="space-y-2">
-          <h1 className="font-display text-[38px] font-bold leading-tight">{t('title')}</h1>
-          <p className="max-w-[620px] text-ink-soft">{t('greeting', { name: investor.name })}</p>
+      <section className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="nb-kicker flex items-center gap-2">
+            <span aria-hidden="true" className="inline-block h-2.5 w-2.5 bg-honey hex-clip" />
+            {t('kicker')}
+          </p>
+          <h1 className="mt-2 font-display text-2xl font-bold text-ink sm:text-3xl">{t('greeting', { name: investor.name })}</h1>
         </div>
-        <Link href="/portal/invest" className={buttonClasses('primary')}>{t('requestSubmit')}</Link>
+        <div className="nb-card px-3 py-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft">{t('phoneChip')}</p>
+          <span className="num mt-0.5 block text-sm font-semibold text-ink">{investor.phone}</span>
+        </div>
       </section>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Link href="/portal/invest" className={buttonClasses('primary')}>{t('requestSubmit')}</Link>
+        <Link href="/portal/account" className={buttonClasses('default')}>{t('accountDetails')}</Link>
+        <Link href="/portal/password" className={buttonClasses('default')}>{t('changePassword')}</Link>
+      </div>
+
+      {rows.length > 0 ? (
+        <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(190px,1fr))]">
+          <StatCard label={t('statTotalInvested')} value={<Money value={totalAmount} />} hint={t('statReceipts', { count: rows.length.toLocaleString('en-IN') })} />
+          <StatCard label={t('statTotalShares')} value={<span className="num font-display text-2xl font-bold">{totalShares.toLocaleString('en-IN')}</span>} tone="confirmed" />
+          <StatCard label={t('statCategory')} value={latest ? <CategoryBadge category={latest.category} /> : '—'} />
+          <StatCard
+            label={t('statLatestDeposit')}
+            value={<span className="num font-display text-2xl font-bold">{latest ? latest.depositDate.toISOString().slice(0, 10) : '—'}</span>}
+            hint={latest ? (latest.status === 'CONFIRMED' ? t('statusConfirmed') : t('statusPending')) : undefined}
+            tone={latest?.status === 'CONFIRMED' ? 'confirmed' : undefined}
+          />
+        </div>
+      ) : null}
 
       {hasContent ? null : (
         <div className="rounded-card border border-line bg-panel p-6">
@@ -61,7 +91,7 @@ export default async function PortalPage({ params }: { params: Promise<{ locale:
                   ) : null}
                 </CardHead>
                 <div className="grid gap-3 p-5 md:grid-cols-2">
-                  <div><div className="text-sm text-ink-soft">{t('shares')}</div><div className="num">{row.shares}</div></div>
+                  <div><div className="text-sm text-ink-soft">{row.kind === 'PAYMENT' ? t('kindPayment') : t('shares')}</div><div className="num">{row.kind === 'PAYMENT' ? (row.targetInvestmentUid ?? '—') : row.shares}</div></div>
                   <div><div className="text-sm text-ink-soft">{t('amount')}</div><Money value={row.amount} /></div>
                   <div><div className="text-sm text-ink-soft">{t('method')}</div><div>{methodT(row.depositMethod)}</div></div>
                   <div><div className="text-sm text-ink-soft">{t('date')}</div><div>{row.depositDate.toISOString().slice(0, 10)}</div></div>

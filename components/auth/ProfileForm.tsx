@@ -14,7 +14,7 @@ function FieldError({ id, messages }: { id: string; messages?: string[] }) {
   return <p id={id} className="mt-1 text-xs text-[#B3261E]">{messages[0]}</p>;
 }
 
-export default function ProfileForm({ verifiedPhone }: { verifiedPhone: string | null }) {
+export default function ProfileForm({ verifiedEmail }: { verifiedEmail: string | null }) {
   const t = useTranslations('register');
   const router = useRouter();
   const [state, action, pending] = useActionState(createInvestorProfileAction, initialState);
@@ -32,16 +32,31 @@ export default function ProfileForm({ verifiedPhone }: { verifiedPhone: string |
       ) : null}
       <div className="space-y-3">
         <div>
-          <label htmlFor="phone" className="block text-[12.5px] font-semibold mb-1.5">{t('phoneLabel')}</label>
+          <label htmlFor="email" className="block text-[12.5px] font-semibold mb-1.5">{t('emailLabel')}</label>
           <input
-            id="phone"
-            type="tel"
-            value={verifiedPhone ?? ''}
+            id="email"
+            type="email"
+            name="email"
+            value={verifiedEmail ?? ''}
             readOnly
             aria-readonly
-            className="w-full border border-line rounded-lg px-3.5 py-2.5 bg-panel focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2"
+            className="w-full border border-line rounded-lg px-3.5 py-2.5 bg-paper text-ink-soft focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2"
           />
-          <p className="text-xs text-ink-soft mt-1">{t('phoneHelper')}</p>
+          <p className="text-xs text-ink-soft mt-1">{t('emailHelper')}</p>
+        </div>
+
+        <div>
+          <label htmlFor="phone" className="block text-[12.5px] font-semibold mb-1.5">{t('depositPhoneLabel')}</label>
+          <input
+            id="phone"
+            name="phone"
+            type="tel"
+            inputMode="numeric"
+            required
+            className="w-full border border-line rounded-lg px-3.5 py-2.5 bg-panel font-mono focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2"
+          />
+          <FieldError id="phone-error" messages={state.ok === false ? state.fieldErrors.phone : undefined} />
+          <p className="text-xs text-ink-soft mt-1">{t('depositPhoneHelper')}</p>
         </div>
 
         <div>
@@ -55,20 +70,6 @@ export default function ProfileForm({ verifiedPhone }: { verifiedPhone: string |
             className="w-full border border-line rounded-lg px-3.5 py-2.5 bg-panel focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2"
           />
           <FieldError id="name-error" messages={state.ok === false ? state.fieldErrors.name : undefined} />
-        </div>
-
-        <div>
-          <label htmlFor="email" className="block text-[12.5px] font-semibold mb-1.5">{t('emailLabel')}</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            aria-invalid={Boolean(state.ok === false && state.fieldErrors.email)}
-            aria-describedby={state.ok === false && state.fieldErrors.email ? 'email-error' : undefined}
-            placeholder={t('emailPlaceholder')}
-            className="w-full border border-line rounded-lg px-3.5 py-2.5 bg-panel focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2"
-          />
-          <FieldError id="email-error" messages={state.ok === false ? state.fieldErrors.email : undefined} />
         </div>
 
         <div>

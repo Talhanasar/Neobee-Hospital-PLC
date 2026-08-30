@@ -6,6 +6,7 @@ import { AuthError, requireStaff } from '@/lib/auth';
 import { registerInvestment } from '@/lib/investments';
 import { registerInvestmentSchema } from '@/lib/validation';
 import { ZodError } from 'zod';
+import { demoRegisterInvestment, isDemoData } from '@/data/demo/store';
 
 export type RegisterState = { ok: false; fieldErrors: Record<string, string[]>; formError?: string } | { ok: true; uid: string; code: string; id?: string };
 
@@ -40,6 +41,12 @@ export async function registerInvestmentAction(prev: RegisterState, formData: Fo
   const forwardedFor = h.get('x-forwarded-for');
   const forwardedIp = forwardedFor ? forwardedFor.split(',')[0]?.trim() ?? null : null;
   const meta = { ipAddress: realIp ?? forwardedIp, userAgent: h.get('user-agent') };
+  if (isDemoData()) {
+    const created = demoRegisterInvestment(parsed.data);
+    revalidatePath('/admin');
+    revalidatePath('/admin/register');
+    return { ok: true, uid: created.uid, code: created.code, id: created.id };
+  }
   try {
     const created = await registerInvestment(parsed.data, staff.id, meta);
     revalidatePath('/admin');

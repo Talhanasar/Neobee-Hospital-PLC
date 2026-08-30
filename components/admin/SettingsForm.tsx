@@ -3,7 +3,7 @@
 import { useActionState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/Button';
-import { updateSettingsAction, type SettingsState, type SettingsFormValues } from '@/app/[locale]/(site)/admin/settings/actions';
+import { updateSettingsAction, type SettingsState, type SettingsFormValues } from '@/app/[locale]/(dash)/admin/settings/actions';
 
 const initialState: SettingsState = { ok: false, fieldErrors: {} };
 

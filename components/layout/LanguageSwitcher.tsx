@@ -3,13 +3,21 @@
 import { useLocale, useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 
-export default function LanguageSwitcher() {
+/** Two-way EN/BN toggle — a segmented control, never a dropdown. */
+export default function LanguageSwitcher({ className }: { className?: string }) {
   const pathname = usePathname();
   const locale = useLocale();
   const t = useTranslations("common");
 
+  const focusRing =
+    "focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2";
+
   return (
-    <nav aria-label={t("language")} className="rounded-full border border-line bg-paper p-1 flex">
+    <div
+      role="group"
+      aria-label={t("language")}
+      className={`inline-flex items-center rounded-full border border-line bg-panel p-0.5 ${className ?? ""}`}
+    >
       {(["en", "bn"] as const).map((loc) => {
         const selected = locale === loc;
         const label = loc === "en" ? t("english") : t("bangla");
@@ -22,19 +30,14 @@ export default function LanguageSwitcher() {
             hrefLang={loc}
             aria-label={label}
             aria-current={selected ? "true" : undefined}
-            className={
-              selected
-                ? "rounded-full bg-ink px-3.5 py-2 text-[13px] font-semibold font-body text-white min-w-[56px] inline-flex items-center justify-center"
-                : "rounded-full px-3.5 py-2 text-[13px] font-semibold font-body text-ink-soft hover:text-ink min-w-[56px] inline-flex items-center justify-center"
-            }
+            className={`inline-flex h-8 min-w-11 items-center justify-center rounded-full px-3 text-xs font-semibold transition-colors ${focusRing} ${
+              selected ? "bg-honey text-ink" : "text-ink-soft hover:text-ink"
+            }`}
           >
-            <span lang={loc}>
-              <span className="hidden md:inline">{label}</span>
-              <span className="md:hidden">{short}</span>
-            </span>
+            <span lang={loc}>{short}</span>
           </Link>
         );
       })}
-    </nav>
+    </div>
   );
 }

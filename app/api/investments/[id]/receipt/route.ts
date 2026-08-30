@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { requireInvestor, requireStaff } from '@/lib/auth';
 import { handleRouteError, jsonError } from '@/lib/http';
 import { generateReceiptPdf } from '@/lib/receipt';
+import { demoAssertOwnsInvestment, demoGetReceiptData, isDemoData } from '@/data/demo/store';
 
 export const runtime = 'nodejs';
 
@@ -9,6 +10,24 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     const investor = await requireInvestor().catch(() => null);
+
+    if (isDemoData()) {
+      if (investor) {
+        if (!demoAssertOwnsInvestment(investor.id, id)) return jsonError(403, 'FORBIDDEN', 'Forbidden');
+      } else {
+        await requireStaff();
+      }
+      const demo = demoGetReceiptData(id);
+      if (!demo) return jsonError(404, 'NOT_FOUND', 'Record not found');
+      const pdf = await generateReceiptPdf({ ...demo, issuedAt: new Date() });
+      return new Response(Buffer.from(pdf), {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${demo.uid}-receipt.pdf"`,
+        },
+      });
+    }
+
     if (investor) {
       const investment = await prisma.investment.findUnique({ where: { id }, select: { investorId: true } });
       if (investment?.investorId !== investor.id) {
@@ -56,7 +75,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       status: investment.status,
       issuedAt: new Date(),
     });
-
 
     return new Response(Buffer.from(pdf), {
       headers: {
