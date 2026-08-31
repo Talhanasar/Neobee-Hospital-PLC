@@ -23,7 +23,7 @@
     "tagline": "A shareholder-owned hospital company building modern, humane healthcare in Chattogram.",
     "depositsShort": "Deposits via the NEOBEE bank account only",
     "deposits": "Deposits are received only in the NEOBEE bank account of the institution.",
-    "partner": "Digital services by NeoTech",
+    "partner": "Developed by Talha",
     "explore": "Explore",
     "utility": "Utility",
     "join": "Become a Shareholder",
@@ -222,7 +222,7 @@
     "takaOnly": "taka only",
     "qrCaption": "Scan to verify this receipt on the Neobee portal — code",
     "footNotice": "Deposits are received only in the NEOBEE bank account of the institution.",
-    "footPartner": "Digital services by NeoTech"
+    "footPartner": "Developed by Talha"
   },
   "qr": {
     "trigger": "QR",
