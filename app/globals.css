@@ -1,25 +1,26 @@
 @import "tailwindcss";
 
-/* Palette contrast rules (see spec):
-   1. ink-on-honey — filled honey accents always carry text-ink (AA 4.5:1+).
+/* Clinical Blue — hospital trust palette (rethemed 2026-09 from the warm honey set).
+   Contrast rules:
+   1. white-on-honey — filled honey accents carry white text (AA 4.5:1+).
    2. honey is fill/decoration only — never a text colour.
    3. honey-deep / amber text only at ≥24px or ≥19px bold (smaller → ink / ink-soft).
    Focus rings use honey-deep (UI elements need only 3:1). */
 @theme {
-  --color-ink: #201D12;
-  --color-ink-soft: #5C5744;
-  --color-paper: #FDFCF7;
+  --color-ink: #0F1F2B;
+  --color-ink-soft: #3E5666;
+  --color-paper: #F7FAFC;
   --color-panel: #FFFFFF;
-  --color-line: #E9E4D4;
+  --color-line: #D7E3EC;
 
-  --color-honey: #E9A215;
-  --color-honey-deep: #A96F05;
-  --color-honey-soft: #FBF0D6;
+  --color-honey: #0B6E99;
+  --color-honey-deep: #0A4D6B;
+  --color-honey-soft: #DCEEF6;
 
-  --color-green: #2F7D5B;
-  --color-green-soft: #E4F1EA;
-  --color-amber: #B26E00;
-  --color-amber-soft: #FBEED3;
+  --color-green: #1B7A4B;
+  --color-green-soft: #E2F3E9;
+  --color-amber: #9A6200;
+  --color-amber-soft: #FCEFDB;
   --color-violet: #5B4B8A;
   --color-violet-soft: #ECE7F7;
   --color-blue: #1E5F8E;

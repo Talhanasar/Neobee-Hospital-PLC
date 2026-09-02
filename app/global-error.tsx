@@ -19,22 +19,22 @@ export default function GlobalError({
             padding: '24px',
             textAlign: 'center',
             backgroundColor: '#FFFFFF',
-            color: '#201D12',
+            color: '#0F1F2B',
           }}
         >
           <div>
             <h1 style={{ fontSize: '22px', fontWeight: 600, margin: '0 0 12px' }}>
               Something went wrong
             </h1>
-            <p style={{ color: '#5C5744', margin: '0 0 20px', lineHeight: 1.5 }}>
+            <p style={{ color: '#3E5666', margin: '0 0 20px', lineHeight: 1.5 }}>
               An unexpected error occurred. Please try again.
             </p>
             <button
               type="button"
               onClick={reset}
               style={{
-                background: '#E9A215',
-                color: '#201D12',
+                background: '#0B6E99',
+                color: '#FFFFFF',
                 border: 'none',
                 borderRadius: '12px',
                 padding: '12px 28px',
@@ -46,7 +46,7 @@ export default function GlobalError({
               Try again
             </button>
             {error.digest ? (
-              <p style={{ fontSize: '12px', color: '#5C5744', marginTop: '20px' }}>
+              <p style={{ fontSize: '12px', color: '#3E5666', marginTop: '20px' }}>
                 Error code: {error.digest}
               </p>
             ) : null}

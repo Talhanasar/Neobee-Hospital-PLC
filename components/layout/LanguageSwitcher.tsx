@@ -31,7 +31,7 @@ export default function LanguageSwitcher({ className }: { className?: string }) 
             aria-label={label}
             aria-current={selected ? "true" : undefined}
             className={`inline-flex h-8 min-w-11 items-center justify-center rounded-full px-3 text-xs font-semibold transition-colors ${focusRing} ${
-              selected ? "bg-honey text-ink" : "text-ink-soft hover:text-ink"
+              selected ? "bg-honey text-white" : "text-ink-soft hover:text-ink"
             }`}
           >
             <span lang={loc}>{short}</span>

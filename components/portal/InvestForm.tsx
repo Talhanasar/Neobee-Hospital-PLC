@@ -109,7 +109,7 @@ export default function InvestForm({
             aria-pressed={kind === k}
             onClick={() => setKind(k)}
             className={`h-9 rounded-full px-4 text-sm font-semibold transition-colors ${focusRing} ${
-              kind === k ? 'bg-honey text-ink' : 'text-ink-soft hover:text-ink'
+              kind === k ? 'bg-honey text-white' : 'text-ink-soft hover:text-ink'
             }`}
           >
             {k === 'share' ? t('kindShare') : t('kindPayment')}

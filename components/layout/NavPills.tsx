@@ -122,7 +122,7 @@ export default function NavPills({ auth }: { auth: NavAuth }) {
 }
 
 const btnLinkCls =
-  'inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-honey px-3.5 text-sm font-semibold text-ink transition-all duration-200 hover:bg-honey-deep hover:text-paper focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2';
+  'inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-honey px-3.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-honey-deep hover:text-paper focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2';
 
 function BrandName() {
   const t = useTranslations('brand');

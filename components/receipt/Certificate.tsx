@@ -25,9 +25,9 @@ export default async function Certificate({ data, qrDataUrl }: { data: Certifica
   } as const;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border-2 border-[#d4af37] bg-[#fcfbf7] p-2 print:rounded-none print:border-0">
+    <div className="relative overflow-hidden rounded-2xl border-2 border-[#0B6E99] bg-[#F7FAFC] p-2 print:rounded-none print:border-0">
       {/* inner gold frame */}
-      <div className="relative rounded-xl border border-[#d4af37] px-6 py-10 sm:px-10">
+      <div className="relative rounded-xl border border-[#0B6E99] px-6 py-10 sm:px-10">
         {/* hexagon watermark */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid place-items-center">
           <span className="hex-clip-pointy h-64 w-72 bg-honey-soft/30" />
@@ -59,7 +59,7 @@ export default async function Certificate({ data, qrDataUrl }: { data: Certifica
           </p>
           <p className="font-display text-xl font-bold text-ink"><Money value={data.amount} /></p>
 
-          <div className="mx-auto grid max-w-md grid-cols-3 gap-3 border-t border-[#d4af37]/50 pt-5 text-left">
+          <div className="mx-auto grid max-w-md grid-cols-3 gap-3 border-t border-[#0B6E99]/50 pt-5 text-left">
             <div>
               <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-soft">{t('certNo')}</p>
               <p className="num mt-1 text-sm font-semibold">{certRef(data.uid)}</p>

@@ -96,7 +96,7 @@ const BTN_BASE =
   'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-semibold transition-all duration-200 active:translate-y-px disabled:pointer-events-none disabled:opacity-50';
 
 const BTN_VARIANTS = {
-  primary: 'bg-honey text-ink hover:bg-honey-deep hover:text-paper',
+  primary: 'bg-honey text-white hover:bg-honey-deep',
   outline: 'border border-line bg-panel text-ink hover:border-honey hover:bg-honey-soft/60',
   ghost: 'text-ink-soft hover:bg-honey-soft/60 hover:text-ink',
   soft: 'bg-honey-soft text-honey-deep hover:bg-honey/30',

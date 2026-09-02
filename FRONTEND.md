@@ -44,22 +44,22 @@ Verification status at the time of writing is `tsc --noEmit` clean, `eslint` cle
 
 ## 2. Design tokens
 
-The tokens are locked and were extracted from the approved `reference/neobee-prototype-reference.html`.
+The tokens were re-themed 2026-09 from the warm honey set to the Clinical Blue hospital palette (client decision — the gold read promotional rather than medical). Source of truth: `app/globals.css`.
 
 | Token | Value |
 |-------|-------|
-| `--color-ink` | `#201D12` |
-| `--color-ink-soft` | `#5C5744` |
-| `--color-paper` | `#FDFCF7` |
+| `--color-ink` | `#0F1F2B` |
+| `--color-ink-soft` | `#3E5666` |
+| `--color-paper` | `#F7FAFC` |
 | `--color-panel` | `#FFFFFF` |
-| `--color-line` | `#E9E4D4` |
-| `--color-honey` | `#E9A215` |
-| `--color-honey-deep` | `#A96F05` |
-| `--color-honey-soft` | `#FBF0D6` |
-| `--color-green` | `#2F7D5B` |
-| `--color-green-soft` | `#E4F1EA` |
-| `--color-amber` | `#B26E00` |
-| `--color-amber-soft` | `#FBEED3` |
+| `--color-line` | `#D7E3EC` |
+| `--color-honey` | `#0B6E99` |
+| `--color-honey-deep` | `#0A4D6B` |
+| `--color-honey-soft` | `#DCEEF6` |
+| `--color-green` | `#1B7A4B` |
+| `--color-green-soft` | `#E2F3E9` |
+| `--color-amber` | `#9A6200` |
+| `--color-amber-soft` | `#FCEFDB` |
 | `--color-violet` | `#5B4B8A` |
 | `--color-violet-soft` | `#ECE7F7` |
 | `--color-blue` | `#1E5F8E` |
@@ -75,10 +75,8 @@ The hexagon motif is implemented by `.hex` using `clip-path`. It is used as the 
 
 The small set of hardcoded hex literals has a local reason rather than a missing token:
 
-- `#F5C64F` is the lighter endpoint of the progress-bar gradient in `GoalBanner`.
 - `#FBE4E2` and `#B3261E` are the verify and register error background and text colors.
-- `#d99408` is the primary-button hover color.
-- `#E9A215`, `#FDFCF7`, and `#A96F05` are the three fills in the receipt logo SVG.
+- `#0B6E99`, `#F7FAFC`, and `#0A4D6B` are the three fills in the receipt logo SVG (clinical-blue mirror of the tokens).
 
 ### 2.1 The reference-prototype utility layer (added by the design port)
 

@@ -51,7 +51,7 @@ export function KistiReceiptModal({ investmentId, uid, installmentNo }: { invest
               >
                 {tPrint('print')}
               </button>
-              <a href={`/api/investments/${investmentId}/receipt?kisti=${installmentNo}`} download className="inline-flex h-8 items-center rounded-lg bg-honey px-3 text-[13px] font-semibold text-ink hover:bg-honey-deep">{t('receiptDownload')}</a>
+              <a href={`/api/investments/${investmentId}/receipt?kisti=${installmentNo}`} download className="inline-flex h-8 items-center rounded-lg bg-honey px-3 text-[13px] font-semibold text-white hover:bg-honey-deep">{t('receiptDownload')}</a>
             </div>
           </div>
         </div>

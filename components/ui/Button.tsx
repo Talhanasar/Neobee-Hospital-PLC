@@ -10,7 +10,7 @@ export function buttonClasses(variant: 'default' | 'primary' = 'default', size: 
   const base = 'inline-flex items-center justify-center border rounded-lg font-semibold focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2';
   const sizes = size === 'sm' ? 'px-[9px] py-[5px] text-xs' : 'px-3 py-[7px] text-[13px]';
   const variants = variant === 'primary'
-    ? 'bg-honey border-honey text-ink hover:bg-honey-deep hover:border-honey'
+    ? 'bg-honey border-honey text-white hover:bg-honey-deep hover:border-honey-deep'
     : 'bg-panel border-line text-ink hover:border-ink';
   return [base, sizes, variants].filter(Boolean).join(' ');
 }

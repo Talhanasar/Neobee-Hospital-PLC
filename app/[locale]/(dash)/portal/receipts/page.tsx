@@ -80,7 +80,7 @@ export default async function ReceiptsPage({ params }: Props) {
                       <div className="inline-flex gap-2">
                         <a
                           href={`/api/investments/${row.id}/receipt`}
-                          className="inline-flex h-8 items-center rounded-lg bg-honey px-3 text-[13px] font-semibold text-ink hover:bg-honey-deep"
+                          className="inline-flex h-8 items-center rounded-lg bg-honey px-3 text-[13px] font-semibold text-white hover:bg-honey-deep"
                           download
                         >
                           {t('receiptDownload')}

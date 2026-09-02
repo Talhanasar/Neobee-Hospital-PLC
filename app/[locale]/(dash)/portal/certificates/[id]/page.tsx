@@ -57,7 +57,7 @@ export default async function CertificatePage({ params }: { params: Promise<{ lo
         {/* Direct PDF download — the print layout stays for on-paper use. */}
         <a
           href={`/api/investments/${id}/certificate`}
-          className="inline-flex h-9 items-center rounded-lg bg-honey px-3.5 text-sm font-semibold text-ink hover:bg-honey-deep"
+          className="inline-flex h-9 items-center rounded-lg bg-honey px-3.5 text-sm font-semibold text-white hover:bg-honey-deep"
           download
         >
           {certT('downloadPdf')}

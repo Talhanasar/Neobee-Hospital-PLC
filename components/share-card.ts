@@ -46,14 +46,14 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 /* ── palette (locked design tokens) ───────────────────────────── */
 const C = {
-  paper: '#FDFCF7',
+  paper: '#F7FAFC',
   panel: '#FFFFFF',
-  line: '#E9E4D4',
-  ink: '#201D12',
-  inkSoft: '#5C5744',
-  honey: '#E9A215',
-  honeyDeep: '#A96F05',
-  honeySoft: '#FBF0D6',
+  line: '#D7E3EC',
+  ink: '#0F1F2B',
+  inkSoft: '#3E5666',
+  honey: '#0B6E99',
+  honeyDeep: '#0A4D6B',
+  honeySoft: '#DCEEF6',
 };
 
 /* ── shared card machinery ──────────────────────────────────────
@@ -174,7 +174,7 @@ function paintClose(ctx: CanvasRenderingContext2D, f: Fonts, W: number) {
   ctx.textAlign = 'center';
   ctx.fillText('কমার্শিয়াল কিন্তু মানবিক — building humane healthcare', W / 2, 986);
 
-  ctx.strokeStyle = 'rgba(233, 228, 212, 0.9)';
+  ctx.strokeStyle = 'rgba(215, 227, 236, 0.9)';
   ctx.lineWidth = 2;
   hexPath(ctx, W / 2, 1120, 64, true);
   ctx.stroke();

@@ -39,8 +39,8 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     doc.once('end', () => resolve(Buffer.concat(chunks)));
 
     // Double gold frame, matching the on-screen certificate.
-    doc.rect(30, 30, 535, 771).lineWidth(2).strokeColor('#d4af37').stroke();
-    doc.rect(38, 38, 519, 755).lineWidth(0.75).strokeColor('#d4af37').stroke();
+    doc.rect(30, 30, 535, 771).lineWidth(2).strokeColor('#0B6E99').stroke();
+    doc.rect(38, 38, 519, 755).lineWidth(0.75).strokeColor('#0B6E99').stroke();
 
     const center = (text: string, y: number, opts: { size?: number; bold?: boolean; color?: string } = {}) => {
       doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica')
@@ -51,7 +51,7 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
 
     center('STAKEHOLDER FINANCE PORTAL · CHATTOGRAM', 70, { size: 9, color: '#555' });
     center('NEOBEE HOSPITAL PLC', 92, { size: 20, bold: true });
-    center('Certificate of Shareholding', 128, { size: 15, bold: true, color: '#8a6d1f' });
+    center('Certificate of Shareholding', 128, { size: 15, bold: true, color: '#0A4D6B' });
 
     const body = `This is to certify that ${data.investorName} is registered in the books of Neobee Hospital PLC as a ${categoryLabel(data.category)}, holding ${data.shares} share(s) of Tk ${formatBdt(data.sharePrice)} each, fully paid-up, vide Unique ID ${data.uid}.`;
     doc.font('Helvetica').fontSize(11).fillColor('#000').text(body, 90, 190, { width: 415, align: 'center', lineGap: 4 });
@@ -63,7 +63,7 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     const colX = [95, 265, 435];
     const labels = ['CERTIFICATE NO.', 'DATE OF ISSUE', 'VERIFICATION CODE'];
     const values = [certRef(data.uid), data.issuedAt.toISOString().slice(0, 10), data.code];
-    doc.save().moveTo(80, 360).lineTo(515, 360).lineWidth(0.75).strokeColor('#d4af37').stroke().restore();
+    doc.save().moveTo(80, 360).lineTo(515, 360).lineWidth(0.75).strokeColor('#0B6E99').stroke().restore();
     labels.forEach((label, i) => {
       doc.font('Helvetica-Bold').fontSize(8).fillColor('#555').text(label, colX[i], 375, { width: 120 });
       doc.font('Helvetica').fontSize(10.5).fillColor('#000').text(values[i], colX[i], 388, { width: 120 });

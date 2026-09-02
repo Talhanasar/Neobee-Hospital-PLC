@@ -108,7 +108,7 @@ function ClaimKistiForm({ row, kisti, onDone }: { row: InvestmentsTableRow; kist
         <button
           type="submit"
           disabled={pending}
-          className={`inline-flex h-9 items-center rounded-lg bg-honey px-3.5 text-sm font-semibold text-ink hover:bg-honey-deep disabled:opacity-50 ${focusRing}`}
+          className={`inline-flex h-9 items-center rounded-lg bg-honey px-3.5 text-sm font-semibold text-white hover:bg-honey-deep disabled:opacity-50 ${focusRing}`}
         >
           {pending ? t('accountSaving') : t('claimSubmit')}
         </button>
@@ -239,7 +239,7 @@ export default function InvestmentsTable({ rows }: { rows: InvestmentsTableRow[]
                                           type="button"
                                           onClick={() => setClaimId(claimId === claimKey ? null : claimKey)}
                                           aria-expanded={claimId === claimKey}
-                                          className={`inline-flex h-7 items-center rounded-lg bg-honey px-2.5 text-[12px] font-semibold text-ink hover:bg-honey-deep ${focusRing}`}
+                                          className={`inline-flex h-7 items-center rounded-lg bg-honey px-2.5 text-[12px] font-semibold text-white hover:bg-honey-deep ${focusRing}`}
                                         >
                                           {t('claimPaid')}
                                         </button>
