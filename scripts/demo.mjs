@@ -69,7 +69,9 @@ try {
   log('');
   log('══════════════════════════════════════════════════════════════');
   log('  DEMO READY — http://localhost:' + DEMO_PORT);
-  log('  Login → "Demo investor" (Rahim Uddin) or "Demo admin".');
+  log('  Login tiles: "Demo investor" (Rahim — fully paid, certificates),');
+  log('  "Kisti investor" (Sultana — installment plan, 2 of 4 kistis in),');
+  log('  "Demo admin" (full staff console).');
   log('  Data: static dataset in data/demo/ — no database involved.');
   log('  Press Ctrl+C to stop. Real data: plain `pnpm dev` (DEMO_DATA unset).');
   log('══════════════════════════════════════════════════════════════');

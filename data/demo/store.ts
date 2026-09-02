@@ -15,6 +15,7 @@ import {
   DEMO_INVESTORS,
   DEMO_LEADS,
   DEMO_REQUESTS,
+  DEMO_SCHEDULES,
   DEMO_SETTINGS,
   DEMO_STAFF,
   DEMO_TRANSACTIONS,
@@ -31,10 +32,12 @@ let investments = [...DEMO_INVESTMENTS];
 let requests: DemoInvestmentRequest[] = [...DEMO_REQUESTS];
 let leads: DemoLead[] = [...DEMO_LEADS];
 let investors = [...DEMO_INVESTORS];
+let schedules = [...DEMO_SCHEDULES];
 let settings: Record<string, number> = { ...DEMO_SETTINGS };
 const demoPasswords: Record<string, string> = {
   // authUserId → password; the seeded demo identities.
   'demo-auth-investor': 'demo-investor-2026',
+  'demo-auth-investor-kisti': 'demo-investor-2026',
   'demo-auth-admin': 'demo-admin-2026',
 };
 let nextUidSeq = 9020;
@@ -55,15 +58,54 @@ export type DemoPortalRow = {
   depositDate: Date;
   confirmedAt: Date | null;
   depositMethod: 'BANK_DEPOSIT' | 'BANK_TRANSFER' | 'CHEQUE' | 'MOBILE_BANKING';
+  paymentPlan: 'FULL' | 'INSTALLMENT';
+  sharePrice: number;
+  totalAmount: number; // face value: shares × sharePrice (undiscounted)
+  fullyPaidAt: Date | null;
 };
 
 export function demoListInvestmentsForInvestor(investorId: string): DemoPortalRow[] {
   return investments
     .filter((i) => i.investorId === investorId)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .map(({ id, uid, code, category, shares, amount, incentiveAmount, status, depositDate, confirmedAt, depositMethod }) => ({
-      id, uid, code, category, shares, amount, incentiveAmount, status, depositDate, confirmedAt, depositMethod,
+    .map(({ id, uid, code, category, shares, amount, incentiveAmount, status, depositDate, confirmedAt, depositMethod, sharePrice }) => ({
+      id,
+      uid,
+      code,
+      category,
+      shares,
+      amount,
+      incentiveAmount,
+      status,
+      depositDate,
+      confirmedAt,
+      depositMethod,
+      paymentPlan: i_paymentPlanOf(id),
+      sharePrice,
+      totalAmount: shares * sharePrice,
+      fullyPaidAt: i_fullyPaidAtOf(id),
     }));
+}
+
+// Kisti schedule rows for the investor's own investments, keyed by investment id.
+export function demoListSchedulesForInvestor(investorId: string): Map<string, DemoPortalRow[] extends never ? never : Array<{ id: string; investmentId: string; installmentNo: number; dueDate: Date; amount: number; status: 'SCHEDULED' | 'PAID' | 'OVERDUE' | 'CANCELLED' }>> {
+  const owned = new Set(investments.filter((i) => i.investorId === investorId).map((i) => i.id));
+  const map = new Map<string, Array<{ id: string; investmentId: string; installmentNo: number; dueDate: Date; amount: number; status: 'SCHEDULED' | 'PAID' | 'OVERDUE' | 'CANCELLED' }>>();
+  for (const s of schedules) {
+    if (!owned.has(s.investmentId)) continue;
+    const list = map.get(s.investmentId) ?? [];
+    list.push({ ...s });
+    map.set(s.investmentId, list);
+  }
+  return map;
+}
+
+// payments-plan/certificate helpers over the mutable investments array
+function i_paymentPlanOf(id: string): 'FULL' | 'INSTALLMENT' {
+  return investments.find((i) => i.id === id)?.paymentPlan ?? 'FULL';
+}
+function i_fullyPaidAtOf(id: string): Date | null {
+  return investments.find((i) => i.id === id)?.fullyPaidAt ?? null;
 }
 
 export function demoListRequestsForInvestor(investorId: string) {
@@ -161,18 +203,55 @@ export function demoListInvestmentsPage(input: { page: number; pageSize: number;
       status: i.status,
       depositDate: i.depositDate,
       depositMethod: i.depositMethod,
+      investorId: i.investorId,
       investorName: inv?.name ?? '—',
       investorPhone: inv?.phone ?? '—',
+      paymentPlan: i.paymentPlan ?? ('FULL' as const),
+      kistis: schedules
+        .filter((s) => s.investmentId === i.id)
+        .sort((a, b) => a.installmentNo - b.installmentNo)
+        .map(({ installmentNo, dueDate, amount, status }) => ({ installmentNo, dueDate, amount, status })),
     };
   });
   return { items, page: input.page, pageSize: input.pageSize, total: filtered.length, totalPages: Math.ceil(filtered.length / input.pageSize) || 1 };
 }
 
-export function demoGetReceiptData(investmentId: string) {
+export function demoGetReceiptData(investmentId: string, installmentNo?: number) {
   const i = investmentById(investmentId);
   if (!i) return null;
   const inv = investorById(i.investorId);
   if (!inv) return null;
+
+  // Per-kisti receipt: only paid installments have a receipt row.
+  if (installmentNo != null) {
+    const schedule = schedules.find((s) => s.investmentId === i.id && s.installmentNo === installmentNo);
+    if (!schedule || schedule.status !== 'PAID') return null;
+    const paidToDate = schedules.filter((s) => s.investmentId === i.id && s.status === 'PAID').reduce((sum, s) => sum + s.amount, 0);
+    return {
+      uid: i.uid,
+      code: i.code,
+      investorName: inv.name,
+      investorPhone: inv.phone,
+      nationalIdNumber: inv.nationalIdNumber,
+      category: i.category,
+      shares: i.shares,
+      sharePrice: i.sharePrice,
+      amount: schedule.amount,
+      isEntrepreneur: i.isEntrepreneur,
+      incentiveAmount: i.incentiveAmount,
+      depositMethod: i.depositMethod,
+      depositRef: i.depositRef,
+      depositDate: i.depositDate,
+      status: i.status,
+      issuedAt: i.createdAt,
+      paymentPlan: 'INSTALLMENT' as const,
+      installmentNo: schedule.installmentNo,
+      kistiRef: `${i.uid}-K${schedule.installmentNo}`,
+      totalAmount: i.shares * i.sharePrice,
+      paidToDate,
+    };
+  }
+
   return {
     uid: i.uid,
     code: i.code,
@@ -190,11 +269,57 @@ export function demoGetReceiptData(investmentId: string) {
     depositDate: i.depositDate,
     status: i.status,
     issuedAt: i.createdAt,
+    // Payment-plan context: kisti receipts show installment + running total.
+    paymentPlan: i.paymentPlan ?? ('FULL' as const),
+    ...(i.paymentPlan === 'INSTALLMENT'
+      ? (() => {
+          const sched = schedules.filter((s) => s.investmentId === i.id).sort((a, b) => a.installmentNo - b.installmentNo);
+          const paidCount = sched.filter((s) => s.status === 'PAID').length;
+          const lastPaid = [...sched].reverse().find((s) => s.status === 'PAID');
+          const paidToDate = sched.filter((s) => s.status === 'PAID').reduce((sum, s) => sum + s.amount, 0);
+          return lastPaid
+            ? { installmentNo: lastPaid.installmentNo, kistiRef: `${i.uid}-K${lastPaid.installmentNo}`, totalAmount: i.shares * i.sharePrice, paidToDate }
+            : { totalAmount: i.shares * i.sharePrice, paidToDate, installmentNo: paidCount || undefined, kistiRef: undefined };
+        })()
+      : {}),
   };
 }
 
-export function demoListPaymentsForInvestment(investmentId: string) {
-  return demoTransactions
+// Certificates tab rows: every investment for one investor with plan/paid/cert state.
+export function demoListCertificatesForInvestor(investorId: string) {
+  return investments
+    .filter((i) => i.investorId === investorId)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .map((i) => ({
+      id: i.id,
+      uid: i.uid,
+      category: i.category,
+      shares: i.shares,
+      amount: i.amount,
+      paymentPlan: i.paymentPlan ?? ('FULL' as const),
+      fullyPaidAt: i.fullyPaidAt ?? null,
+      certificateIssuedAt: i.certificateIssuedAt ?? null,
+    }));
+}
+
+// Certificate detail (only fully-paid investments qualify).
+export function demoGetCertificate(investmentId: string) {
+  const i = investmentById(investmentId);
+  if (!i || !i.fullyPaidAt) return null;
+  return {
+    id: i.id,
+    uid: i.uid,
+    code: i.code,
+    category: i.category,
+    shares: i.shares,
+    sharePrice: i.sharePrice,
+    amount: i.amount,
+    fullyPaidAt: i.fullyPaidAt,
+    issuedAt: i.certificateIssuedAt ?? i.fullyPaidAt,
+  };
+}
+
+export function demoListPaymentsForInvestment(investmentId: string) {  return demoTransactions
     .filter((t) => t.investmentId === investmentId)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .map((t) => ({
@@ -242,23 +367,13 @@ export function demoConfirmInvestment(investmentId: string): boolean {
   return true;
 }
 
-export function demoResolveRequest(id: string, decision: 'APPROVED' | 'REJECTED', reviewNote: string | null): boolean {
-  const r = requests.find((x) => x.id === id);
-  if (!r || r.status !== 'SUBMITTED') return false;
-  requests = requests.map((x) =>
-    x.id === id
-      ? { ...x, status: decision, reviewedByStaffId: 'demo-staff-admin', reviewedAt: new Date(), reviewNote, updatedAt: new Date() }
-      : x,
-  );
-  return true;
-}
-
 export type DemoCreateRequestInput = {
   investorId: string;
   kind: 'SHARE_PURCHASE' | 'PAYMENT';
   shares?: number;
   entrepreneurRequested?: boolean;
   targetInvestmentId?: string;
+  installmentNo?: number | null;
   amount?: number;
   depositMethod: 'BANK_DEPOSIT' | 'BANK_TRANSFER' | 'CHEQUE' | 'MOBILE_BANKING';
   depositRef?: string | null;
@@ -279,6 +394,16 @@ export function demoCreateRequest(input: DemoCreateRequestInput): string {
   } else {
     const target = investments.find((i) => i.id === input.targetInvestmentId);
     if (!target || target.investorId !== input.investorId) return 'target';
+    // One open claim per kisti — a kisti already claimed or already paid rejects.
+    if (input.installmentNo != null) {
+      const alreadyClaimed = requests.some(
+        (r) => r.status === 'SUBMITTED' && r.targetInvestmentId === input.targetInvestmentId && r.installmentNo === input.installmentNo,
+      );
+      const alreadyPaid = schedules.some(
+        (s) => s.investmentId === input.targetInvestmentId && s.installmentNo === input.installmentNo && s.status === 'PAID',
+      );
+      if (alreadyClaimed || alreadyPaid) return 'kistiClaimed';
+    }
   }
 
   const id = `demo-req-${Date.now()}`;
@@ -289,6 +414,7 @@ export function demoCreateRequest(input: DemoCreateRequestInput): string {
       investorId: input.investorId,
       kind: input.kind,
       targetInvestmentId: input.targetInvestmentId ?? null,
+      installmentNo: input.installmentNo ?? null,
       shares: input.shares ?? 0,
       entrepreneurRequested: input.entrepreneurRequested ?? false,
       sharePrice: DEMO_SETTINGS.SHARE_PRICE,
@@ -309,6 +435,94 @@ export function demoCreateRequest(input: DemoCreateRequestInput): string {
     ...requests,
   ];
   return id;
+}
+
+export function demoResolveRequest(id: string, decision: 'APPROVED' | 'REJECTED', reviewNote: string | null): boolean {
+  const r = requests.find((x) => x.id === id);
+  if (!r || r.status !== 'SUBMITTED') return false;
+  requests = requests.map((x) =>
+    x.id === id
+      ? { ...x, status: decision, reviewedByStaffId: 'demo-staff-admin', reviewedAt: new Date(), reviewNote, updatedAt: new Date() }
+      : x,
+  );
+
+  // PAYMENT approval drives the ledger: mark the kisti PAID, credit the
+  // investment amount, append the transaction row, and close the plan when
+  // the last kisti clears (fullyPaidAt + certificate).
+  if (decision === 'APPROVED' && r.kind === 'PAYMENT' && r.targetInvestmentId) {
+    const investmentId = r.targetInvestmentId;
+    if (r.installmentNo != null) {
+      schedules = schedules.map((s) =>
+        s.investmentId === investmentId && s.installmentNo === r.installmentNo ? { ...s, status: 'PAID' as const } : s,
+      );
+    }
+    const allPaid = schedules.filter((s) => s.investmentId === investmentId).every((s) => s.status === 'PAID');
+    investments = investments.map((inv) =>
+      inv.id === investmentId
+        ? {
+            ...inv,
+            amount: inv.amount + r.amount,
+            fullyPaidAt: allPaid ? new Date() : inv.fullyPaidAt ?? null,
+            certificateIssuedAt: allPaid ? new Date() : inv.certificateIssuedAt ?? null,
+            updatedAt: new Date(),
+          }
+        : inv,
+    );
+    demoTransactions.push({
+      id: `demo-tx-${Date.now()}`,
+      investmentId,
+      amount: r.amount,
+      type: 'DEPOSIT' as const,
+      depositMethod: r.depositMethod,
+      depositDate: r.depositDate,
+      note: r.note ?? 'Payment approved in demo',
+      recordedByStaffId: 'demo-staff-admin',
+      createdAt: new Date(),
+    });
+  }
+
+  // SHARE_PURCHASE approval: create the investment (mirrors lib/requests.ts).
+  if (decision === 'APPROVED' && r.kind === 'SHARE_PURCHASE') {
+    const sharePrice = DEMO_SETTINGS.SHARE_PRICE;
+    const incentivePerShare = DEMO_SETTINGS.INCENTIVE_PER_SHARE;
+    const shares = r.shares;
+    const category = shares >= 10 ? 'DIRECTOR' : shares >= 5 ? 'PREMIUM' : 'SHAREHOLDER';
+    const incentiveAmount = r.entrepreneurRequested ? shares * incentivePerShare : 0;
+    const uid = `NEO-${nextUidSeq++}`;
+    const newId = `demo-inv-${nextUidSeq}`;
+    const now = new Date();
+    investments = [
+      {
+        id: newId,
+        investorId: r.investorId,
+        uid,
+        code: `NB-${demoCode()}`,
+        shares,
+        category,
+        isEntrepreneur: r.entrepreneurRequested,
+        incentiveAmount,
+        sharePrice,
+        incentivePerShare,
+        discountPerShare: 0,
+        amount: shares * sharePrice,
+        paymentPlan: 'FULL' as const,
+        fullyPaidAt: null,
+        certificateIssuedAt: null,
+        depositMethod: r.depositMethod,
+        depositRef: r.depositRef,
+        depositDate: r.depositDate,
+        status: 'CONFIRMED' as const,
+        confirmedAt: now,
+        notes: r.note ?? 'Approved in demo',
+        recordedByStaffId: 'demo-staff-admin',
+        createdAt: now,
+        updatedAt: now,
+      },
+      ...investments,
+    ];
+    requests = requests.map((x) => (x.id === id ? { ...x, investmentId: newId } : x));
+  }
+  return true;
 }
 
 export function demoMarkLeadContacted(leadId: string): boolean {
@@ -338,15 +552,74 @@ export function demoCreateLead(input: { name: string; phone: string; email?: str
   return { ok: true, lead: { id: lead.id, ref: lead.ref } };
 }
 
-export function demoUpdateInvestorProfile(investorId: string, data: { name: string; email: string | null; nationalIdNumber: string | null }): boolean {
-  // Demo investors are immutable constants; report success so the form's UX flow completes.
-  return DEMO_INVESTORS.some((i) => i.id === investorId) && Boolean(data.name);
+export function demoUpdateInvestorProfile(investorId: string, data: { name: string; phone: string; nationalIdNumber: string | null; address: string | null; tin: string | null }): boolean {
+  // Reject a phone already used by a different demo investor (mirrors the Prisma
+  // @unique constraint the action enforces on the real DB).
+  if (investors.some((i) => i.id !== investorId && i.phone === data.phone)) return false;
+  const idx = investors.findIndex((i) => i.id === investorId);
+  if (idx === -1) return false;
+  investors[idx] = {
+    ...investors[idx],
+    name: data.name,
+    phone: data.phone,
+    nationalIdNumber: data.nationalIdNumber ?? investors[idx].nationalIdNumber,
+    address: data.address ?? null,
+    tin: data.tin ?? null,
+    updatedAt: new Date(),
+  };
+  return true;
 }
 
 /* ── Demo auth identities (cookie session, no Supabase) ── */
 
+export type DemoInvestorDetail = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  nationalIdNumber: string | null;
+  tin: string | null;
+  address: string | null;
+  approvalStatus: 'PENDING' | 'APPROVED';
+  createdAt: Date;
+  investments: ReturnType<typeof demoListInvestmentsForInvestor>;
+  requests: ReturnType<typeof demoListRequestsForInvestor>;
+};
+
+export function demoGetInvestorDetail(id: string): DemoInvestorDetail | null {
+  const inv = investors.find((i) => i.id === id);
+  if (!inv) return null;
+  return {
+    id: inv.id,
+    name: inv.name,
+    phone: inv.phone,
+    email: inv.email,
+    nationalIdNumber: inv.nationalIdNumber,
+    address: inv.address ?? null,
+    tin: inv.tin ?? null,
+    approvalStatus: inv.approvalStatus,
+    createdAt: inv.createdAt,
+    investments: demoListInvestmentsForInvestor(inv.id).map((i) => {
+      const inv2 = investmentById(i.id);
+      return {
+        ...i,
+        depositDate: inv2?.depositDate ?? new Date(),
+        depositMethod: inv2?.depositMethod ?? ('BANK_DEPOSIT' as const),
+        certificateRef: inv2?.certificateIssuedAt ? `${i.uid}-CERT` : null,
+        kistis: schedules
+          .filter((s) => s.investmentId === i.id)
+          .sort((a, b) => a.installmentNo - b.installmentNo)
+          .map(({ installmentNo, dueDate, amount, status }) => ({ installmentNo, dueDate, amount, status })),
+      };
+    }),
+    requests: demoListRequestsForInvestor(inv.id),
+  };
+}
+
+
 export function demoInvestorForAuthUser(authUserId: string) {
-  const inv = DEMO_INVESTORS.find((i) => i.authUserId === authUserId);
+  // Reads the mutable array so profile edits (demoUpdateInvestorProfile) show up on reload.
+  const inv = investors.find((i) => i.authUserId === authUserId);
   if (!inv) return null;
   return {
     id: inv.id,
@@ -355,6 +628,7 @@ export function demoInvestorForAuthUser(authUserId: string) {
     name: inv.name,
     email: inv.email,
     nationalIdNumber: inv.nationalIdNumber,
+    tin: inv.tin ?? null,
     approvalStatus: inv.approvalStatus,
     createdAt: inv.createdAt,
     updatedAt: inv.updatedAt,
