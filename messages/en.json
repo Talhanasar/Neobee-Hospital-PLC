@@ -405,6 +405,9 @@
     "paginationSummary": "Showing {from}-{to} of {total}",
     "registerTitle": "Register shareholder",
     "registerLead": "Issue an ID, receipt and QR code for a new subscription.",
+    "accountPassword": "Login password (optional)",
+    "accountPasswordHelp": "Set a password to create the investor's portal login with the email above — they can change it later.",
+    "accountCreatedNote": "Portal login created — the investor can sign in with the email and this password.",
     "name": "Shareholder name",
     "namePlaceholder": "e.g. Farhana Rahman",
     "phone": "Phone",
@@ -877,6 +880,8 @@
     "qrNote": "Verify at the stakeholder portal — code {code}",
     "chairmanName": "Jahangir Alam Akash",
     "chairmanTitle": "Chairman, Neobee Hospital PLC",
+    "ceoName": "Md. Kaisar Chowdhury",
+    "ceoTitle": "CEO, Neobee Hospital PLC",
     "downloadPdf": "Download PDF"
   },
   "auth": {

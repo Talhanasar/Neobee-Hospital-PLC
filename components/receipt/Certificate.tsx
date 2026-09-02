@@ -82,10 +82,17 @@ export default async function Certificate({ data, qrDataUrl }: { data: Certifica
                 {t('qrNote', { code: data.code })}
               </p>
             </div>
-            <div className="text-center">
-              <p className="font-display text-sm font-bold text-ink">{t('chairmanName')}</p>
-              <p className="mt-0.5 text-[11px] text-ink-soft">{t('chairmanTitle')}</p>
-              <div className="mt-8 w-44 border-t border-ink/60" />
+            <div className="flex items-end gap-10">
+              <div className="text-center">
+                <p className="font-display text-sm font-bold text-ink">{t('chairmanName')}</p>
+                <p className="mt-0.5 text-[11px] text-ink-soft">{t('chairmanTitle')}</p>
+                <div className="mt-8 w-44 border-t border-ink/60" />
+              </div>
+              <div className="text-center">
+                <p className="font-display text-sm font-bold text-ink">{t('ceoName')}</p>
+                <p className="mt-0.5 text-[11px] text-ink-soft">{t('ceoTitle')}</p>
+                <div className="mt-8 w-44 border-t border-ink/60" />
+              </div>
             </div>
           </div>
         </div>

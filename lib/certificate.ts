@@ -74,9 +74,13 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     doc.font('Helvetica').fontSize(8.5).fillColor('#555')
       .text(`Verify at the stakeholder portal — code ${data.code}`, 95, 580, { width: 120 });
 
-    doc.font('Helvetica-Bold').fontSize(11).fillColor('#000').text('Jahangir Alam Akash', 370, 545, { width: 150, align: 'center' });
-    doc.font('Helvetica').fontSize(9).fillColor('#555').text('Chairman, Neobee Hospital PLC', 370, 560, { width: 150, align: 'center' });
-    doc.save().moveTo(370, 540).lineTo(500, 540).lineWidth(0.75).strokeColor('#000').stroke().restore();
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#000').text('Jahangir Alam Akash', 290, 545, { width: 120, align: 'center' });
+    doc.font('Helvetica').fontSize(9).fillColor('#555').text('Chairman, Neobee Hospital PLC', 290, 560, { width: 120, align: 'center' });
+    doc.save().moveTo(290, 540).lineTo(410, 540).lineWidth(0.75).strokeColor('#000').stroke().restore();
+
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#000').text('Md. Kaisar Chowdhury', 425, 545, { width: 120, align: 'center' });
+    doc.font('Helvetica').fontSize(9).fillColor('#555').text('CEO, Neobee Hospital PLC', 425, 560, { width: 120, align: 'center' });
+    doc.save().moveTo(425, 540).lineTo(545, 540).lineWidth(0.75).strokeColor('#000').stroke().restore();
 
     doc.font('Helvetica').fontSize(8.5).fillColor('#777')
       .text(`Issued at: ${data.issuedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC`, 40, 755, { width: 515, align: 'right' });
