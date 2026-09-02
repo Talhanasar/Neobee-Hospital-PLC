@@ -105,7 +105,8 @@ export async function demoPasswordLoginAction(email: string, password: string): 
   const jar = await cookies();
   jar.set('neobee-demo-role', role, { httpOnly: true, sameSite: 'lax', path: '/' });
   revalidatePath('/portal');
-  return { ok: true, role };
+  const coarse = role.startsWith('investor') ? 'investor' : role;
+  return { ok: true, role: coarse as 'investor' | 'admin' };
 }
 
 export type DemoSignUpResult =

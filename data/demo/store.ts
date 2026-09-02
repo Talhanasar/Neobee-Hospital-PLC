@@ -733,6 +733,22 @@ export function demoRegisterInvestment(input: {
   return { uid, code, id };
 }
 
+/** Admin-created login for a walk-in investor: binds the investor record to a
+    demo auth identity with the staff-chosen password, using the email above so
+    the investor can sign in at /login and later change the password. */
+export function demoCreateInvestorAccount(investmentId: string, email: string, password: string): { ok: true } | { ok: false; error: 'emailTaken' } {
+  const inv = investmentById(investmentId);
+  if (!inv) return { ok: false, error: 'emailTaken' };
+  const investor = investors.find((i) => i.id === inv.investorId);
+  if (!investor) return { ok: false, error: 'emailTaken' };
+  const norm = email.trim().toLowerCase();
+  if (investors.some((i) => i.id !== investor.id && i.email?.toLowerCase() === norm)) return { ok: false, error: 'emailTaken' };
+  const authUserId = investor.authUserId ?? `demo-auth-${Date.now()}`;
+  investors = investors.map((i) => (i.id === investor.id ? { ...i, authUserId, email: investor.email ?? norm, updatedAt: new Date() } : i));
+  demoPasswords[authUserId] = password;
+  return { ok: true };
+}
+
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function demoCode(): string {
   let code = '';
@@ -808,7 +824,7 @@ export function demoRegistrationStatusForEmail(email: string): { registered: boo
   return { registered: true, approved: investor.approvalStatus === 'APPROVED' };
 }
 
-export function demoSignInWithPassword(email: string, password: string): 'investor' | 'investor-kisti' | 'admin' | null {  const norm = email.trim().toLowerCase();
+export function demoSignInWithPassword(email: string, password: string): string | null {  const norm = email.trim().toLowerCase();
   // Seeded demo identities keep their @neobee.test auth emails.
   if (norm === 'demo-admin@neobee.test' && password === demoPasswords['demo-auth-admin']) return 'admin';
   if (norm === 'demo-investor@neobee.test' && password === demoPasswords['demo-auth-investor']) return 'investor';
@@ -816,7 +832,8 @@ export function demoSignInWithPassword(email: string, password: string): 'invest
   const investor = investors.find((i) => i.email?.toLowerCase() === norm);
   if (investor?.authUserId && demoPasswords[investor.authUserId] === password) {
     if (investor.authUserId === 'demo-auth-investor-kisti') return 'investor-kisti';
-    return 'investor';
+    if (investor.authUserId === 'demo-auth-investor') return 'investor';
+    return `investor:${investor.authUserId}`;
   }
   return null;
 }

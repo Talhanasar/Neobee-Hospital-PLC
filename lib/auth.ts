@@ -39,6 +39,10 @@ export async function getAuthUser(): Promise<{ id: string } | null> {
   // the demo presentation must run with zero external dependencies.
   if (isDemoData()) {
     const demoRole = (await cookies()).get('neobee-demo-role')?.value;
+    if (demoRole?.startsWith('investor:')) {
+      const id = demoRole.slice('investor:'.length);
+      if (id) return { id };
+    }
     if (demoRole === 'investor') return { id: 'demo-auth-investor' };
     if (demoRole === 'investor-kisti') return { id: 'demo-auth-investor-kisti' };
     if (demoRole === 'admin') return { id: 'demo-auth-admin' };

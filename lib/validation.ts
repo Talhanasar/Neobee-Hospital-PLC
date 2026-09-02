@@ -36,6 +36,7 @@ export const registerInvestmentSchema = z
     name: z.string().trim().min(1, { message: 'Name is required' }).max(200),
     phone: phoneSchema,
     email: z.email().optional(),
+    accountPassword: z.string().min(6, { message: 'Password must be at least 6 characters' }).max(72).optional(),
     nationalIdNumber: z.string().trim().max(50).optional(),
     shares: z.number().int().min(MIN_SHARES).max(MAX_SHARES),
     isEntrepreneur: z.boolean().default(false),
@@ -51,6 +52,13 @@ export const registerInvestmentSchema = z
         code: 'custom',
         path: ['shares'],
         message: `Entrepreneur rule: isEntrepreneur true requires at least ${ENTREPRENEUR_MIN_SHARES} shares`,
+      });
+    }
+    if (value.accountPassword && !value.email) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['email'],
+        message: 'Email is required when creating a login account',
       });
     }
   });
