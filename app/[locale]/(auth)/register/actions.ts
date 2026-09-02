@@ -10,6 +10,7 @@ import { writeAuditLog, actionVerbs, getRequestMetadataFromHeaders } from '@/lib
 import { ActorType } from '@/lib/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import { ZodError } from 'zod';
+import { isDemoData } from '@/data/demo/store';
 
 export type InvestorSignupState =
   | { ok: false; fieldErrors: Record<string, string[]>; formError?: string }
@@ -35,6 +36,49 @@ export async function investorSignupAction(
   _prevState: InvestorSignupState,
   formData: FormData,
 ): Promise<InvestorSignupState> {
+  // Demo mode: no Supabase session — validate + persist against the in-memory store.
+  if (isDemoData()) {
+    const parsed = investorSignupSchema.safeParse({
+      name: formData.get('name'),
+      phone: formData.get('phone'),
+      email: String(formData.get('email') ?? '').trim(),
+      address: String(formData.get('address') ?? '').trim() || undefined,
+      nationalIdNumber: formData.get('nationalIdNumber'),
+      password: formData.get('password'),
+      shares: formData.get('shares'),
+      paymentPlan: formData.get('paymentPlan'),
+      depositMethod: formData.get('depositMethod'),
+      depositRef: String(formData.get('depositRef') ?? '').trim() || undefined,
+      depositDate: formData.get('depositDate'),
+      note: String(formData.get('note') ?? '').trim() || undefined,
+    });
+    if (!parsed.success) return { ok: false, fieldErrors: flattenFieldErrors(parsed.error) };
+    const { demoSignUp, demoCreateRequest } = await import('@/data/demo/store');
+    const result = demoSignUp({
+      name: parsed.data.name,
+      email: parsed.data.email,
+      phone: parsed.data.phone,
+      password: parsed.data.password,
+      nationalIdNumber: parsed.data.nationalIdNumber,
+    });
+    if (!result.ok) return { ok: false, fieldErrors: {}, formError: result.error === 'duplicateEmail' ? 'duplicateEmail' : 'duplicatePhone' };
+    const requestId = demoCreateRequest({
+      investorId: result.investorId,
+      kind: 'SHARE_PURCHASE',
+      shares: parsed.data.shares,
+      entrepreneurRequested: false,
+      paymentPlan: parsed.data.paymentPlan,
+      depositMethod: parsed.data.depositMethod,
+      depositRef: parsed.data.depositRef ?? null,
+      depositDate: parsed.data.depositDate,
+      note: parsed.data.note ?? null,
+    });
+    revalidatePath('/admin/registrations');
+    revalidatePath('/admin');
+    revalidatePath('/admin/requests');
+    return { ok: true, requestId };
+  }
+
   const supabase = await createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) {

@@ -7,6 +7,7 @@ import { useRouter } from '@/i18n/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { checkRegistrationStatusAction } from '@/app/[locale]/(auth)/login/actions';
 import { investorSignupAction, type InvestorSignupState } from '@/app/[locale]/(auth)/register/actions';
+import { isDemoClient } from '@/data/demo/client';
 import { btnClasses } from '@/components/ui/bits';
 import { BadgeCheckIcon } from '@/components/ui/icons';
 import {
@@ -122,6 +123,11 @@ export default function RegisterForm() {
     setError(null);
     setLoading(true);
     try {
+      // Demo: no email gateway — skip the OTP send; the code step accepts any 6 digits.
+      if (isDemoClient()) {
+        setOtpSent(true);
+        return;
+      }
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: { shouldCreateUser: false },
@@ -142,12 +148,16 @@ export default function RegisterForm() {
     if (otp.trim().length !== 6) { setError(t('errOtpLength')); return; }
     setLoading(true);
     try {
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        email: email.trim(),
-        token: otp.trim(),
-        type: 'email',
-      });
-      if (verifyError) { setError(t('errOtpWrong')); return; }
+      // Demo: no email gateway — any 6-digit code verifies; skip the OTP check
+      // and proceed straight to the signup action.
+      if (!isDemoClient()) {
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          email: email.trim(),
+          token: otp.trim(),
+          type: 'email',
+        });
+        if (verifyError) { setError(t('errOtpWrong')); return; }
+      }
       // Session established — the form action carries the whole wizard payload.
       const formData = new FormData();
       formData.set('name', name.trim());

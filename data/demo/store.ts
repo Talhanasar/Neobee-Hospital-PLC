@@ -375,6 +375,7 @@ export type DemoCreateRequestInput = {
   targetInvestmentId?: string;
   installmentNo?: number | null;
   amount?: number;
+  paymentPlan?: 'FULL' | 'INSTALLMENT' | null;
   depositMethod: 'BANK_DEPOSIT' | 'BANK_TRANSFER' | 'CHEQUE' | 'MOBILE_BANKING';
   depositRef?: string | null;
   depositDate: Date;
@@ -420,6 +421,7 @@ export function demoCreateRequest(input: DemoCreateRequestInput): string {
       sharePrice: DEMO_SETTINGS.SHARE_PRICE,
       incentivePerShare: DEMO_SETTINGS.INCENTIVE_PER_SHARE,
       amount: input.kind === 'SHARE_PURCHASE' ? (input.shares ?? 0) * DEMO_SETTINGS.SHARE_PRICE : (input.amount ?? 0),
+      paymentPlan: input.paymentPlan ?? null,
       depositMethod: input.depositMethod,
       depositRef: input.depositRef ?? null,
       depositDate: input.depositDate,
@@ -791,15 +793,16 @@ export function demoSignUp(input: {
   phone: string;
   password: string;
   nationalIdNumber?: string | null;
-}): { ok: true } | { ok: false; error: 'duplicateEmail' | 'duplicatePhone' } {
+}): { ok: true; investorId: string } | { ok: false; error: 'duplicateEmail' | 'duplicatePhone' } {
   const email = input.email.trim().toLowerCase();
   if (investors.some((i) => i.email?.toLowerCase() === email)) return { ok: false, error: 'duplicateEmail' };
   if (input.phone && investors.some((i) => i.phone === input.phone)) return { ok: false, error: 'duplicatePhone' };
   const authUserId = `demo-auth-${Date.now()}`;
+  const investorId = `demo-investor-${Date.now()}`;
   investors = [
     ...investors,
     {
-      id: `demo-investor-${Date.now()}`,
+      id: investorId,
       authUserId,
       phone: input.phone,
       name: input.name,
@@ -811,7 +814,7 @@ export function demoSignUp(input: {
     },
   ];
   demoPasswords[authUserId] = input.password;
-  return { ok: true };
+  return { ok: true, investorId };
 }
 
 /** Registration pre-check for the register form: is this email already

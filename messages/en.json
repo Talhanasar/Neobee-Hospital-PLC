@@ -393,6 +393,7 @@
     "colStatus": "Status",
     "colActions": "Actions",
     "rowReceipt": "Receipt",
+    "viewReceipt": "View digital receipt",
     "rowQr": "QR",
     "rowDetail": "View profile: {name}",
     "emptyTitle": "No shareholders registered yet",

@@ -173,6 +173,7 @@ export type DemoInvestmentRequest = {
   sharePrice: number;
   incentivePerShare: number;
   amount: number;
+  paymentPlan?: 'FULL' | 'INSTALLMENT' | null;
   depositMethod: 'BANK_DEPOSIT' | 'BANK_TRANSFER' | 'CHEQUE' | 'MOBILE_BANKING';
   depositRef: string | null;
   depositDate: Date;

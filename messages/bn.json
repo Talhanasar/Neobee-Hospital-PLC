@@ -392,6 +392,7 @@
     "colStatus": "অবস্থা",
     "colActions": "কার্যক্রম",
     "rowReceipt": "রসিদ",
+    "viewReceipt": "ডিজিটাল রসিদ দেখুন",
     "rowQr": "QR",
     "rowDetail": "প্রোফাইল দেখুন: {name}",
     "emptyTitle": "এখনো কোনো শেয়ারহোল্ডার নিবন্ধিত নেই",
