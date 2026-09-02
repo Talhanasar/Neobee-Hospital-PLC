@@ -2,13 +2,16 @@ import { prisma } from '@/lib/db';
 import { requireInvestor, requireStaff } from '@/lib/auth';
 import { handleRouteError, jsonError } from '@/lib/http';
 import { generateReceiptPdf } from '@/lib/receipt';
-import { demoAssertOwnsInvestment, demoGetReceiptData, isDemoData } from '@/data/demo/store';
+import { getReceiptData } from '@/lib/queries';
+import { demoAssertOwnsInvestment, isDemoData } from '@/data/demo/store';
 
 export const runtime = 'nodejs';
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   try {
     const { id } = await params;
+    const kisti = new URL(request.url).searchParams.get('kisti');
+    const installmentNo = kisti != null && kisti !== '' && Number.isInteger(Number(kisti)) ? Number(kisti) : undefined;
     const investor = await requireInvestor().catch(() => null);
 
     if (isDemoData()) {
@@ -17,69 +20,25 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       } else {
         await requireStaff();
       }
-      const demo = demoGetReceiptData(id);
-      if (!demo) return jsonError(404, 'NOT_FOUND', 'Record not found');
-      const pdf = await generateReceiptPdf({ ...demo, issuedAt: new Date() });
-      return new Response(Buffer.from(pdf), {
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${demo.uid}-receipt.pdf"`,
-        },
-      });
-    }
-
-    if (investor) {
-      const investment = await prisma.investment.findUnique({ where: { id }, select: { investorId: true } });
-      if (investment?.investorId !== investor.id) {
-        return jsonError(403, 'FORBIDDEN', 'Forbidden');
-      }
     } else {
-      await requireStaff();
+      if (investor) {
+        const investment = await prisma.investment.findUnique({ where: { id }, select: { investorId: true } });
+        if (investment?.investorId !== investor.id) {
+          return jsonError(403, 'FORBIDDEN', 'Forbidden');
+        }
+      } else {
+        await requireStaff();
+      }
     }
 
-    const investment = await prisma.investment.findUnique({
-      where: { id },
-      select: {
-        uid: true,
-        code: true,
-        investor: { select: { name: true, phone: true, nationalIdNumber: true } },
-        category: true,
-        shares: true,
-        sharePrice: true,
-        amount: true,
-        isEntrepreneur: true,
-        incentiveAmount: true,
-        depositMethod: true,
-        depositRef: true,
-        depositDate: true,
-        status: true,
-      },
-    });
-    if (!investment) return jsonError(404, 'NOT_FOUND', 'Record not found');
-
-    const pdf = await generateReceiptPdf({
-      uid: investment.uid,
-      code: investment.code,
-      investorName: investment.investor.name,
-      investorPhone: investment.investor.phone,
-      nationalIdNumber: investment.investor.nationalIdNumber,
-      category: investment.category,
-      shares: investment.shares,
-      sharePrice: investment.sharePrice,
-      amount: investment.amount,
-      isEntrepreneur: investment.isEntrepreneur,
-      incentiveAmount: investment.incentiveAmount,
-      depositMethod: investment.depositMethod,
-      depositRef: investment.depositRef,
-      depositDate: investment.depositDate,
-      status: investment.status,
-      issuedAt: new Date(),
-    });
-
+    const data = await getReceiptData(id, { installmentNo });
+    if (!data) return jsonError(404, 'NOT_FOUND', 'Record not found');
+    const pdf = await generateReceiptPdf({ ...data, issuedAt: new Date() });
+    const filename = installmentNo != null ? `${data.uid}-K${installmentNo}-receipt.pdf` : `${data.uid}-receipt.pdf`;
     return new Response(Buffer.from(pdf), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${investment.uid}-receipt.pdf"`,
+        'Content-Disposition': `attachment; filename="${filename}"`,
       },
     });
   } catch (error) {

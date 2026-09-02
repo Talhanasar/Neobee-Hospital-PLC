@@ -7,15 +7,17 @@ import { demoLoginAction } from '@/app/[locale]/(auth)/login/actions';
 import { ShieldCheckIcon, UserRoundIcon } from '@/components/ui/icons';
 
 // One-click demo tour on the login card, ported from the reference design:
-// two tiles (hex icon + label + sub) that sign in as the seeded demo
-// investor or admin. Visually secondary to the real phone+password form.
+// tiles (hex icon + label + sub) that sign in as the seeded demo investors
+// or admin. Visually secondary to the real email+password form. The kisti
+// tile is DEMO_DATA-only — there is no Supabase-seeded identity for it.
 export default function DemoLoginButtons() {
   const t = useTranslations('login');
   const router = useRouter();
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState(false);
+  const showKisti = process.env.NEXT_PUBLIC_DEMO_DATA === 'true';
 
-  const handle = (role: 'investor' | 'admin') => {
+  const handle = (role: 'investor' | 'investor-kisti' | 'admin') => {
     if (isPending) return;
     setError(false);
     startTransition(async () => {
@@ -28,7 +30,7 @@ export default function DemoLoginButtons() {
     });
   };
 
-  const tile = (role: 'investor' | 'admin', Icon: typeof UserRoundIcon) => (
+  const tile = (role: 'investor' | 'investor-kisti' | 'admin', Icon: typeof UserRoundIcon, labelKey: 'demoInvestor' | 'demoInvestorKisti' | 'demoAdmin', subKey: 'demoInvestorSub' | 'demoInvestorKistiSub' | 'demoAdminSub') => (
     <button
       type="button"
       disabled={isPending}
@@ -43,11 +45,9 @@ export default function DemoLoginButtons() {
       </span>
       <span className="min-w-0">
         <span className="block truncate text-sm font-semibold text-ink">
-          {isPending ? t('demoSigningIn') : role === 'investor' ? t('demoInvestor') : t('demoAdmin')}
+          {isPending ? t('demoSigningIn') : t(labelKey)}
         </span>
-        <span className="block truncate text-xs text-ink-soft">
-          {role === 'investor' ? t('demoInvestorSub') : t('demoAdminSub')}
-        </span>
+        <span className="block truncate text-xs text-ink-soft">{t(subKey)}</span>
       </span>
     </button>
   );
@@ -59,9 +59,10 @@ export default function DemoLoginButtons() {
         <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{t('demoTour')}</span>
         <span className="h-px flex-1 bg-line" />
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {tile('investor', UserRoundIcon)}
-        {tile('admin', ShieldCheckIcon)}
+      <div className={['mt-3 grid gap-2', showKisti ? 'grid-cols-3' : 'grid-cols-2'].join(' ')}>
+        {tile('investor', UserRoundIcon, 'demoInvestor', 'demoInvestorSub')}
+        {showKisti ? tile('investor-kisti', UserRoundIcon, 'demoInvestorKisti', 'demoInvestorKistiSub') : null}
+        {tile('admin', ShieldCheckIcon, 'demoAdmin', 'demoAdminSub')}
       </div>
       {error ? (
         <div role="alert" className="mt-3 rounded-card bg-[#FBE4E2] px-4 py-3 text-center text-sm text-[#B3261E]">

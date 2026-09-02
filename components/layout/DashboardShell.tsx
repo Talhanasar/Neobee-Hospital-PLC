@@ -7,6 +7,7 @@ import { signOutAction } from '@/app/[locale]/(auth)/login/actions';
 import { HexAvatar, HexLogo } from '@/components/ui/bits';
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher';
 import {
+  BadgeCheckIcon,
   FilePlus2Icon,
   HandshakeIcon,
   LayoutDashboardIcon,
@@ -26,7 +27,8 @@ export type DashIdentity = { name: string; role: 'investor' | 'staff'; initials:
 const NAV: Record<DashZone, { href: string; key: string; icon: (p: { size?: number }) => React.ReactElement }[]> = {
   investor: [
     { href: '/portal', key: 'overview', icon: LayoutDashboardIcon },
-    { href: '/portal/invest', key: 'invest', icon: WalletIcon },
+    { href: '/portal/invest', key: 'investments', icon: WalletIcon },
+    { href: '/portal/certificates', key: 'certificates', icon: BadgeCheckIcon },
     { href: '/portal/receipts', key: 'receipts', icon: ReceiptTextIcon },
     { href: '/portal/account', key: 'account', icon: LandmarkIcon },
     { href: '/portal/password', key: 'password', icon: UserRoundIcon },
@@ -38,6 +40,7 @@ const NAV: Record<DashZone, { href: string; key: string; icon: (p: { size?: numb
     { href: '/admin/requests', key: 'requests', icon: ReceiptTextIcon },
     { href: '/admin/leads', key: 'leads', icon: HandshakeIcon },
     { href: '/admin/settings', key: 'settings', icon: SettingsIcon },
+    { href: '/admin/password', key: 'password', icon: UserRoundIcon },
   ],
 };
 

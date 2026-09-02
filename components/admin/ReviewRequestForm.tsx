@@ -78,7 +78,7 @@ export function ReviewRequestForm({ request, sharePrice, incentivePerShare }: Re
     <div className="space-y-6">
       {approveSuccess && (
         <div role="status" className="bg-green-soft text-green rounded-card px-4 py-3">
-          {t('approveSuccess', { investmentId: approveState.investmentId ? approveState.investmentId.slice(0, 8) : 'N/A' })}
+          {t('approveSuccess', { investmentId: approveState.investmentId ?? 'N/A' })}
           {approveState.investmentId ? (
             <Link href={`/admin/receipts/${approveState.investmentId}`} className="ml-2 underline">
               {t('approveSuccessReceipt')}

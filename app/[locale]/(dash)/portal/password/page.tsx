@@ -14,7 +14,7 @@ export default async function PortalPasswordPage({ params }: Props) {
   } catch (error) {
     if (error instanceof AuthError) {
       if (error.status === 401) redirect({ href: '/login', locale });
-      redirect({ href: '/register/profile', locale });
+      redirect({ href: '/register', locale });
     }
     throw error;
   }

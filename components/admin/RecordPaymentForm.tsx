@@ -66,7 +66,7 @@ export function RecordPaymentForm({ investmentId }: { investmentId: string }) {
           <input name="depositDate" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} className={inputCls} />
         </label>
         <label className="block">
-          <span className={labelCls}>{t('colDepositRef')}</span>
+          <span className={labelCls}>{t('colDepositRefLabel')}</span>
           <input name="depositRef" type="text" className={inputCls} />
         </label>
         <label className="block sm:col-span-2">

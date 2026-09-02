@@ -8,23 +8,60 @@ import { isDemoClient } from '@/data/demo/client';
 import { btnClasses } from '@/components/ui/bits';
 
 /**
- * Change-password form for a signed-in investor. Runs the Supabase
- * update through the SSR server client so the session cookie stays
- * authoritative.
+ * Change-password flow for a signed-in user (investor or staff):
+ *   1. "Send code" — Supabase emails a 6-digit OTP (recovery type) to the
+ *      signed-in user's email.
+ *   2. Enter code + new password — verifyOtp re-establishes the session,
+ *      then updateUser writes the new password.
+ * The signed-in session is not enough on its own: the emailed code proves
+ * control of the mailbox before a credential change.
  */
 export default function PasswordChangeForm() {
   const t = useTranslations('portal');
+  const supabase = React.useMemo(() => createClient(), []);
+  const [otp, setOtp] = React.useState('');
+  const [otpSent, setOtpSent] = React.useState(false);
   const [password, setPassword] = React.useState('');
   const [confirmPassword, setConfirmPassword] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [done, setDone] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  const sendCode = async () => {
+    if (loading) return;
+    setError(null);
+    setLoading(true);
+    try {
+      // Demo: no email gateway — go straight to the code step (any 6 digits verify).
+      if (isDemoClient()) {
+        setOtpSent(true);
+        return;
+      }
+      const { data: userData } = await supabase.auth.getUser();
+      const target = (userData.user?.email ?? '').trim();
+      if (!target) {
+        setError(t('otpEmailRequired'));
+        return;
+      }
+      const { error: otpError } = await supabase.auth.resetPasswordForEmail(target);
+      if (otpError) throw otpError;
+      setOtpSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('errorGeneric'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
     setError(null);
-    if (password.length < 6) {
+    if (otp.trim().length !== 6) {
+      setError(t('otpErrLength'));
+      return;
+    }
+    if (password.length < 8) {
       setError(t('errPasswordShort'));
       return;
     }
@@ -35,20 +72,32 @@ export default function PasswordChangeForm() {
     setLoading(true);
     try {
       if (isDemoClient()) {
-        // Demo: update the in-memory password for this session's identity.
+        // Demo: no email gateway — any 6-digit code verifies.
         const result = await demoChangePasswordAction(password);
         if (!result.ok) throw new Error(t('errorGeneric'));
         setDone(true);
         setPassword('');
         setConfirmPassword('');
+        setOtp('');
         return;
       }
-      const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      const { data: userData } = await supabase.auth.getUser();
+      const target = (userData.user?.email ?? '').trim();
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: target,
+        token: otp.trim(),
+        type: 'recovery',
+      });
+      if (verifyError) {
+        setError(t('otpErrWrong'));
+        return;
+      }
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError) throw updateError;
       setDone(true);
       setPassword('');
       setConfirmPassword('');
+      setOtp('');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errorGeneric'));
     } finally {
@@ -70,35 +119,78 @@ export default function PasswordChangeForm() {
           {error}
         </div>
       ) : null}
-      <div className="space-y-1.5">
-        <label htmlFor="new-password" className="block text-sm font-medium text-ink">{t('newPassword')}</label>
-        <input
-          id="new-password"
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          minLength={6}
-          required
-          className={`nb-input ${focusRing}`}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <label htmlFor="confirm-password" className="block text-sm font-medium text-ink">{t('confirmPassword')}</label>
-        <input
-          id="confirm-password"
-          type="password"
-          autoComplete="new-password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          minLength={6}
-          required
-          className={`nb-input ${focusRing}`}
-        />
-      </div>
-      <button type="submit" disabled={loading} className={`${btnClasses('primary', 'md')} ${focusRing}`}>
-        {loading ? t('changing') : t('changeSubmit')}
-      </button>
+
+      {otpSent ? (
+        <>
+          <p className="text-sm leading-relaxed text-ink-soft">{t('otpChangeSentBody')}</p>
+          <div className="space-y-1.5">
+            <label htmlFor="otp-code" className="block text-sm font-medium text-ink">{t('otpCodeLabel')}</label>
+            <input
+              id="otp-code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="000000"
+              required
+              className={`nb-input text-center font-mono tracking-[0.4em] ${focusRing}`}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="space-y-1.5">
+          <p className="text-sm leading-relaxed text-ink-soft">{t('otpChangeIntro')}</p>
+          <button
+            type="button"
+            onClick={sendCode}
+            disabled={loading}
+            className={`${btnClasses('soft', 'md')} w-full ${focusRing}`}
+          >
+            {loading ? t('changing') : t('otpSendCode')}
+          </button>
+        </div>
+      )}
+
+      {otpSent ? (
+        <>
+          <div className="space-y-1.5">
+            <label htmlFor="new-password" className="block text-sm font-medium text-ink">{t('newPassword')}</label>
+            <input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={8}
+              required
+              className={`nb-input ${focusRing}`}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="confirm-password" className="block text-sm font-medium text-ink">{t('confirmPassword')}</label>
+            <input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              minLength={8}
+              required
+              className={`nb-input ${focusRing}`}
+            />
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={sendCode} disabled={loading} className={`${btnClasses('ghost', 'md')} ${focusRing}`}>
+              {t('otpResendCode')}
+            </button>
+            <button type="submit" disabled={loading} className={`${btnClasses('primary', 'md')} flex-1 ${focusRing}`}>
+              {loading ? t('changing') : t('changeSubmit')}
+            </button>
+          </div>
+        </>
+      ) : null}
     </form>
   );
 }

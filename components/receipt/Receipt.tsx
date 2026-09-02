@@ -12,6 +12,7 @@ export default async function Receipt({ data, qrDataUrl }: { data: ReceiptData; 
     SHAREHOLDER: t('categoryShareholder'),
     PREMIUM: t('categoryPremium'),
     DIRECTOR: t('categoryDirector'),
+    GOLDEN_DIRECTOR: t('categoryGoldenDirector'),
   } as const;
 
   const rows: Array<{ label: string; value: React.ReactNode } | null> = [
@@ -21,8 +22,10 @@ export default async function Receipt({ data, qrDataUrl }: { data: ReceiptData; 
     { label: t('category'), value: <span>{categoryT[data.category]}{data.isEntrepreneur ? t('entrepreneurSuffix') : ''}</span> },
     { label: t('sharesSubscribed'), value: <span className="num">{data.shares} × <Money value={data.sharePrice} /></span> },
     data.incentiveAmount > 0 ? { label: t('incentive'), value: <Money value={data.incentiveAmount} /> } : null,
+    data.kistiRef ? { label: t('kistiLabel'), value: <span className="num">{data.kistiRef}</span> } : null,
     { label: t('method'), value: <span>{methodT(data.depositMethod)}</span> },
     data.depositRef ? { label: t('reference'), value: <span className="num">{data.depositRef}</span> } : null,
+    data.paidToDate != null && data.totalAmount != null ? { label: t('paidToDate'), value: <span className="num"><Money value={data.paidToDate} /> / <Money value={data.totalAmount} /></span> } : null,
     { label: t('code'), value: <span className="num">{data.code}</span> },
     { label: t('status'), value: <span>{data.status === 'CONFIRMED' ? t('statusConfirmed') : t('statusPending')}</span> },
   ];
@@ -72,7 +75,6 @@ export default async function Receipt({ data, qrDataUrl }: { data: ReceiptData; 
       </div>
       <div className="border-t border-line px-[22px] py-3 text-[11px] text-ink-soft flex justify-between gap-2.5 flex-wrap">
         <div>{t('footNotice')}</div>
-        <div>{t('footPartner')}</div>
       </div>
     </section>
   );

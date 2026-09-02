@@ -14,6 +14,7 @@ import {
   ENTREPRENEUR_MIN_SHARES,
   MAX_SHARES,
   MIN_SHARES,
+  type InvestmentCategory,
 } from '@/lib/money';
 import { submitInvestmentRequestAction, type SubmitInvestmentRequestState } from '@/app/[locale]/(dash)/portal/invest/actions';
 
@@ -27,9 +28,18 @@ function FieldError({ id, messages }: { id: string; messages?: string[] }) {
 export type PortalInvestmentOption = {
   id: string;
   uid: string;
-  category: 'SHAREHOLDER' | 'PREMIUM' | 'DIRECTOR';
+  category: InvestmentCategory;
   shares: number;
   status: 'PENDING' | 'CONFIRMED';
+  paymentPlan: 'FULL' | 'INSTALLMENT';
+};
+
+export type PortalKistiOption = {
+  investmentId: string;
+  installmentNo: number;
+  amount: number;
+  dueDate: string; // ISO date
+  status: 'SCHEDULED' | 'PAID' | 'OVERDUE' | 'CANCELLED';
 };
 
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2';
@@ -40,12 +50,15 @@ export default function InvestForm({
   sharePrice,
   incentivePerShare,
   investments,
+  installments = [],
 }: {
   sharePrice: number;
   incentivePerShare: number;
   investments: PortalInvestmentOption[];
+  installments?: PortalKistiOption[];
 }) {
   const t = useTranslations('invest');
+  const tReg = useTranslations('register');
   const tAdmin = useTranslations('admin');
   const tMethods = useTranslations('methods');
   const tFooter = useTranslations('footer');
@@ -55,12 +68,19 @@ export default function InvestForm({
   const [isEntrepreneurRequested, setIsEntrepreneurRequested] = React.useState(false);
   const [targetInvestmentId, setTargetInvestmentId] = React.useState('');
   const [paymentAmount, setPaymentAmount] = React.useState('');
+  const [installmentNo, setInstallmentNo] = React.useState('');
   const shareCount = Number(shares);
   const canPreview = Number.isInteger(shareCount) && shares !== '';
   const category = canPreview && shareCount >= MIN_SHARES ? deriveCategory(shareCount) : null;
   const amount = canPreview ? calculateAmount(shareCount, sharePrice) : null;
   const incentive = canPreview && isEntrepreneurRequested ? calculateIncentive(shareCount, true, incentivePerShare) : null;
   const showEntrepreneurWarning = isEntrepreneurRequested && canPreview && shareCount < ENTREPRENEUR_MIN_SHARES;
+
+  // Unpaid kistis for the currently selected investment (kisti payment flow).
+  const openKistis = installments.filter(
+    (k) => k.investmentId === targetInvestmentId && (k.status === 'SCHEDULED' || k.status === 'OVERDUE'),
+  );
+  const selectedKisti = openKistis.find((k) => String(k.installmentNo) === installmentNo) ?? null;
 
   const fieldErrors = state.ok === false ? state.fieldErrors : {};
   const firstFieldError = (key: string) => fieldErrors[key];
@@ -247,6 +267,31 @@ export default function InvestForm({
               </select>
               <FieldError id="targetInvestmentId-error" messages={firstFieldError('targetInvestmentId')} />
             </label>
+            {openKistis.length > 0 ? (
+              <label className="block">
+                <span className={labelCls}>{t('chooseKisti')}</span>
+                <select
+                  name="installmentNo"
+                  value={installmentNo}
+                  onChange={(e) => {
+                    setInstallmentNo(e.target.value);
+                    const k = openKistis.find((row) => String(row.installmentNo) === e.target.value);
+                    if (k) setPaymentAmount(String(k.amount));
+                  }}
+                  className={inputCls}
+                >
+                  <option value="">{t('chooseKistiPlaceholder')}</option>
+                  {openKistis.map((k) => (
+                    <option key={k.installmentNo} value={k.installmentNo}>
+                      {`${t('kistiLabel', { no: k.installmentNo })} · ৳${k.amount.toLocaleString('en-IN')} · ${k.dueDate.slice(0, 10)}`}
+                    </option>
+                  ))}
+                </select>
+                {selectedKisti ? (
+                  <p className="mt-1 text-xs text-ink-soft">{t('kistiDueHint', { date: selectedKisti.dueDate.slice(0, 10) })}</p>
+                ) : null}
+              </label>
+            ) : null}
             <label className="block">
               <span className={labelCls}>{t('paymentAmount')}</span>
               <input
@@ -314,6 +359,19 @@ export default function InvestForm({
                 className={inputCls}
               />
               <FieldError id="note-error" messages={firstFieldError('note')} />
+            </label>
+            <label className="block md:col-span-2">
+              <span className={labelCls}>{tReg('slipLabel')}</span>
+              <input
+                name="slipFile"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                aria-invalid={Boolean(firstFieldError('slipFile'))}
+                aria-describedby={firstFieldError('slipFile') ? 'slipFile-error' : undefined}
+                className={inputCls}
+              />
+              <FieldError id="slipFile-error" messages={firstFieldError('slipFile')} />
+              <p className="text-xs text-ink-soft mt-1">{tReg('slipHelper', { max: '5 MB' })}</p>
             </label>
           </div>
 

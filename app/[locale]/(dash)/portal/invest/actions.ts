@@ -2,13 +2,15 @@
 
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { randomUUID } from 'node:crypto';
 import { AuthError, requireInvestor } from '@/lib/auth';
 import {
   submitInvestmentRequest,
   submitPaymentRequest,
   type SubmitInvestmentRequestInput,
 } from '@/lib/requests';
-import { submitInvestmentRequestSchema, submitPaymentRequestSchema } from '@/lib/validation';
+import { storage } from '@/lib/storage';
+import { submitInvestmentRequestSchema, submitPaymentRequestSchema, validateSlipFile } from '@/lib/validation';
 import { demoCreateRequest, isDemoData } from '@/data/demo/store';
 import { ZodError } from 'zod';
 
@@ -60,6 +62,7 @@ export async function submitInvestmentRequestAction(
       const parsed = submitPaymentRequestSchema.safeParse({
         targetInvestmentId: formData.get('targetInvestmentId'),
         amount: formData.get('amount'),
+        installmentNo: formData.get('installmentNo') || undefined,
         ...common,
       });
       if (!parsed.success) return { ok: false, fieldErrors: flattenFieldErrors(parsed.error) };
@@ -77,9 +80,21 @@ export async function submitInvestmentRequestAction(
         });
         if (demoResult === 'cap') return { ok: false, fieldErrors: {}, formError: 'openRequestCap' };
         if (demoResult === 'target') return { ok: false, fieldErrors: {}, formError: 'targetInvestment' };
+        if (demoResult === 'kistiClaimed') return { ok: false, fieldErrors: {}, formError: 'kistiAlreadyClaimed' };
         revalidatePath('/portal');
+        revalidatePath('/portal/invest');
         revalidatePath('/admin/requests');
         return { ok: true, requestId: demoResult };
+      }
+
+      // Deposit slip upload (optional on kisti payments but verified when present).
+      let slipFileKey: string | null = null;
+      const slip = formData.get('slipFile');
+      if (slip instanceof File && slip.size > 0) {
+        const slipError = validateSlipFile(slip);
+        if (slipError) return { ok: false, fieldErrors: { slipFile: [slipError] } };
+        slipFileKey = `slips/${randomUUID()}`;
+        await storage.uploadFile(slipFileKey, new Uint8Array(await slip.arrayBuffer()), slip.type);
       }
 
       const request = await submitPaymentRequest(
@@ -87,6 +102,8 @@ export async function submitInvestmentRequestAction(
           investorId: investor.id,
           targetInvestmentId: parsed.data.targetInvestmentId,
           amount: parsed.data.amount,
+          installmentNo: parsed.data.installmentNo ?? null,
+          slipFileKey,
           depositMethod: parsed.data.depositMethod,
           depositRef: parsed.data.depositRef,
           depositDate: parsed.data.depositDate,
@@ -95,6 +112,7 @@ export async function submitInvestmentRequestAction(
         requestMeta,
       );
       revalidatePath('/portal');
+      revalidatePath('/portal/invest');
       revalidatePath('/admin/requests');
       return { ok: true, requestId: request.id };
     }

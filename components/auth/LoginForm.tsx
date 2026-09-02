@@ -45,7 +45,9 @@ export default function LoginForm({ footer }: { footer?: React.ReactNode }) {
       if (error) throw error;
       const result = await completeLoginAction();
       if (result.needsProfile) {
-        router.push('/register/profile');
+        // Legacy accounts created before the wizard: send them to the wizard
+        // to finish registration (details + share request) in one pass.
+        router.push('/register');
         return;
       }
       router.push('/portal');

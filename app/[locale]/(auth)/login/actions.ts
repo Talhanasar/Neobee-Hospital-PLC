@@ -43,14 +43,17 @@ export async function signOutAction(): Promise<void> {
 }
 
 export type DemoLoginResult =
-  | { ok: true; role: 'investor' | 'admin' }
+  | { ok: true; role: 'investor' | 'investor-kisti' | 'admin' }
   | { ok: false; error: 'demoDisabled' | 'demoFailed' };
 
 // One-click demo sign-in for presentations. Signs in with a seeded
 // phone+password via the SSR server client (cookies persist the session,
 // per the @supabase/ssr server-action pattern), then returns the role so
 // the client wrapper can route to the right dashboard.
-export async function demoLoginAction(role: 'investor' | 'admin'): Promise<DemoLoginResult> {
+// 'investor-kisti' is the second demo identity (installment investor); it
+// only exists in DEMO_DATA mode — the Supabase-seeded path keeps the
+// original two identities.
+export async function demoLoginAction(role: 'investor' | 'investor-kisti' | 'admin'): Promise<DemoLoginResult> {
   if (!isDemoLoginEnabled()) return { ok: false, error: 'demoDisabled' };
 
   // Demo data mode: the session is a signed-out-by-default cookie — no
@@ -61,6 +64,7 @@ export async function demoLoginAction(role: 'investor' | 'admin'): Promise<DemoL
     revalidatePath('/portal');
     return { ok: true, role };
   }
+  if (role === 'investor-kisti') return { ok: false, error: 'demoFailed' };
 
   const credentials = role === 'investor'
     ? { email: DEMO_INVESTOR.email, password: DEMO_INVESTOR.password }

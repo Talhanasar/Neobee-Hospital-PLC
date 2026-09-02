@@ -1,4 +1,5 @@
 import { Link } from '@/i18n/navigation';
+import * as React from 'react';
 import { getTranslations } from 'next-intl/server';
 import { Button, buttonClasses } from '@/components/ui/Button';
 import { Card, CardHead } from '@/components/ui/Card';
@@ -6,6 +7,7 @@ import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { Money } from '@/components/ui/Money';
 import { Num } from '@/components/ui/Num';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { KistiStatusBadge } from '@/components/ui/KistiStatusBadge';
 import type { InvestmentListResult } from '@/lib/queries';
 import type { ListInvestmentsInput } from '@/lib/validation';
 
@@ -44,6 +46,7 @@ export async function ShareholderTable({ result, query }: { result: InvestmentLi
               <option value="SHAREHOLDER">{t('categoryShareholder')}</option>
               <option value="PREMIUM">{t('categoryPremium')}</option>
               <option value="DIRECTOR">{t('categoryDirector')}</option>
+              <option value="GOLDEN_DIRECTOR">{t('categoryGoldenDirector')}</option>
             </select>
           </label>
           <input type="hidden" name="pageSize" value={query.pageSize} />
@@ -77,22 +80,33 @@ export async function ShareholderTable({ result, query }: { result: InvestmentLi
             ) : (
               result.items.map((row, index) => {
                 const last = index === result.items.length - 1;
+                const rowBorder = ['px-4 py-3 border-b border-line text-sm align-middle', last && row.paymentPlan !== 'INSTALLMENT' ? 'border-b-0' : ''].join(' ');
                 return (
-                  <tr key={row.id} className="hover:bg-honey-soft/50">
-                    <td className={['px-4 py-3 border-b border-line text-sm align-middle num', last ? 'border-b-0' : ''].join(' ')}>{row.uid}</td>
-                    <td className={['px-4 py-3 border-b border-line text-sm align-middle', last ? 'border-b-0' : ''].join(' ')}>
-                      <div className="font-semibold">{row.investorName}</div>
+                  <React.Fragment key={row.id}>
+                  <tr className="hover:bg-honey-soft/50">
+                    <td className={`num ${rowBorder}`}>{row.uid}</td>
+                    <td className={rowBorder}>
+                      <div className="font-semibold">
+                        <Link href={`/admin/investors/${row.investorId}`} className="hover:underline" aria-label={t('rowDetail', { name: row.investorName })}>
+                          {row.investorName}
+                        </Link>
+                      </div>
                       <div className="text-xs text-ink-soft num">{row.investorPhone}</div>
                     </td>
-                    <td className={['px-4 py-3 border-b border-line text-sm align-middle', last ? 'border-b-0' : ''].join(' ')}><CategoryBadge category={row.category} /></td>
-                    <td className={['px-4 py-3 border-b border-line text-sm align-middle', last ? 'border-b-0' : ''].join(' ')}><Num value={row.shares} /></td>
-                    <td className={['px-4 py-3 border-b border-line text-sm align-middle', last ? 'border-b-0' : ''].join(' ')}><Money value={row.amount} /></td>
-                    <td className={['px-4 py-3 border-b border-line text-sm align-middle', last ? 'border-b-0' : ''].join(' ')}>
+                    <td className={rowBorder}><CategoryBadge category={row.category} /></td>
+                    <td className={rowBorder}><Num value={row.shares} /></td>
+                    <td className={rowBorder}>
+                      <Money value={row.amount} />
+                      {row.paymentPlan === 'INSTALLMENT' ? (
+                        <div className="text-xs font-semibold text-violet">{t('planInstallment')}</div>
+                      ) : null}
+                    </td>
+                    <td className={rowBorder}>
                       <div>{row.depositDate.toISOString().slice(0, 10)}</div>
                       <div className="text-xs text-ink-soft">{methodT(row.depositMethod)}</div>
                     </td>
-                    <td className={['px-4 py-3 border-b border-line text-sm align-middle', last ? 'border-b-0' : ''].join(' ')}><StatusBadge status={row.status} /></td>
-                    <td className={['px-4 py-3 border-b border-line text-sm align-middle text-right whitespace-nowrap', last ? 'border-b-0' : ''].join(' ')}>
+                    <td className={rowBorder}><StatusBadge status={row.status} /></td>
+                    <td className={`${rowBorder} text-right whitespace-nowrap`}>
                       {/* No delete action: the ledger is append-only and the old client-side destroy button must not return. */}
                       <div className="inline-flex gap-2">
                         <Link className={buttonClasses('default', 'sm')} href={`/admin/receipts/${row.id}`}>{t('rowReceipt')}</Link>
@@ -100,6 +114,40 @@ export async function ShareholderTable({ result, query }: { result: InvestmentLi
                       </div>
                     </td>
                   </tr>
+                  {row.paymentPlan === 'INSTALLMENT' && row.kistis.length > 0 ? (
+                    <tr className="bg-paper/60">
+                      <td colSpan={8} className={['px-4 py-3 border-b border-line text-sm align-middle', last ? 'border-b-0' : ''].join(' ')}>
+                        <details>
+                          <summary className="cursor-pointer text-xs font-semibold text-honey-deep">
+                            {t('kistiToggle', { uid: row.uid })}
+                          </summary>
+                          <div className="mt-2 overflow-x-auto">
+                            <table className="w-full min-w-[520px] border-collapse text-xs">
+                              <thead>
+                                <tr className="text-left">
+                                  <th scope="col" className="py-1.5 pr-4 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('colKistiId')}</th>
+                                  <th scope="col" className="py-1.5 pr-4 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('kistiAmountCol')}</th>
+                                  <th scope="col" className="py-1.5 pr-4 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('kistiDueCol')}</th>
+                                  <th scope="col" className="py-1.5 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('kistiStatusCol')}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {row.kistis.map((k) => (
+                                  <tr key={k.installmentNo} className="border-t border-line">
+                                    <td className="num py-1.5 pr-4">{`${row.uid}-K${k.installmentNo}`}</td>
+                                    <td className="py-1.5 pr-4"><Money value={k.amount} /></td>
+                                    <td className="num py-1.5 pr-4">{k.dueDate.toISOString().slice(0, 10)}</td>
+                                    <td className="py-1.5"><KistiStatusBadge status={k.status as 'SCHEDULED' | 'PAID' | 'OVERDUE' | 'CANCELLED'} /></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </details>
+                      </td>
+                    </tr>
+                  ) : null}
+                  </React.Fragment>
                 );
               })
             )}

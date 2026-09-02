@@ -15,7 +15,7 @@ export default async function PortalAccountPage({ params }: Props) {
   } catch (error) {
     if (error instanceof AuthError) {
       if (error.status === 401) redirect({ href: '/login', locale });
-      redirect({ href: '/register/profile', locale });
+      redirect({ href: '/register', locale });
     }
     throw error;
   }
@@ -34,6 +34,8 @@ export default async function PortalAccountPage({ params }: Props) {
                 phone: investor.phone,
                 email: investor.email,
                 nationalIdNumber: investor.nationalIdNumber,
+                tin: investor.tin,
+                address: investor.address,
                 memberSince: investor.createdAt.toISOString().slice(0, 10),
               }}
             />

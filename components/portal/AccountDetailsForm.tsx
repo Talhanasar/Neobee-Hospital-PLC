@@ -24,11 +24,14 @@ export type AccountDetails = {
   phone: string;
   email: string | null;
   nationalIdNumber: string | null;
+  tin: string | null;
+  address: string | null;
   memberSince: string;
 };
 
-/** Investor account details — identity fields are editable; the phone is
-    the OTP-verified login identity and stays read-only. */
+/** Investor account details — name / NID / address are editable; phone and
+    email are the Supabase auth identities (OTP login, password reset) and
+    stay read-only. */
 export default function AccountDetailsForm({ account }: { account: AccountDetails }) {
   const t = useTranslations('portal');
   const [state, action, pending] = useActionState(updateInvestorProfileAction, initialState);
@@ -52,7 +55,7 @@ export default function AccountDetailsForm({ account }: { account: AccountDetail
       ) : null}
       {state.ok === false && state.formError ? (
         <div role="alert" className="rounded-xl border border-amber/40 bg-amber-soft/70 px-3.5 py-2.5 text-sm text-ink">
-          {state.formError === 'authRequired' ? t('errorAuth') : state.formError === 'pendingApproval' ? t('pendingBody') : t('errorGeneric')}
+          {state.formError === 'authRequired' ? t('errorAuth') : state.formError === 'pendingApproval' ? t('pendingBody') : state.formError === 'phoneTaken' ? t('errPhoneTaken') : t('errorGeneric')}
         </div>
       ) : null}
 
@@ -60,13 +63,15 @@ export default function AccountDetailsForm({ account }: { account: AccountDetail
         <label htmlFor="account-phone" className={labelCls}>{t('phoneVerified')}</label>
         <input
           id="account-phone"
+          name="phone"
           type="tel"
-          value={account.phone}
-          readOnly
-          aria-readonly
-          className={`${inputCls} font-mono bg-paper text-ink-soft`}
+          defaultValue={account.phone}
+          required
+          aria-invalid={Boolean(fieldErrors.phone)}
+          aria-describedby={fieldErrors.phone ? 'account-phone-error' : undefined}
+          className={`${inputCls} font-mono`}
         />
-        <p className="text-xs text-ink-soft">{t('phoneReadonly')}</p>
+        <FieldError id="account-phone-error" messages={fieldErrors.phone} />
       </div>
 
       <div className="space-y-1.5">
@@ -98,18 +103,43 @@ export default function AccountDetailsForm({ account }: { account: AccountDetail
       </div>
 
       <div className="space-y-1.5">
+        <label htmlFor="account-tin" className={labelCls}>{t('accountTin')}</label>
+        <input
+          id="account-tin"
+          name="tin"
+          defaultValue={account.tin ?? ''}
+          aria-invalid={Boolean(fieldErrors.tin)}
+          aria-describedby={fieldErrors.tin ? 'account-tin-error' : undefined}
+          className={`${inputCls} font-mono`}
+        />
+        <p className="text-xs text-ink-soft">{t('accountTinHint')}</p>
+        <FieldError id="account-tin-error" messages={fieldErrors.tin} />
+      </div>
+
+      <div className="space-y-1.5">
         <label htmlFor="account-email" className={labelCls}>{t('emailLabel')}</label>
         <input
           id="account-email"
-          name="email"
           type="email"
-          defaultValue={account.email ?? ''}
-          placeholder={t('emailPlaceholder')}
-          aria-invalid={Boolean(fieldErrors.email)}
-          aria-describedby={fieldErrors.email ? 'account-email-error' : undefined}
+          value={account.email ?? ''}
+          readOnly
+          aria-readonly
+          className={`${inputCls} bg-paper text-ink-soft`}
+        />
+        <p className="text-xs text-ink-soft">{t('emailReadOnly')}</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <label htmlFor="account-address" className={labelCls}>{t('addressLabel')}</label>
+        <input
+          id="account-address"
+          name="address"
+          defaultValue={account.address ?? ''}
+          aria-invalid={Boolean(fieldErrors.address)}
+          aria-describedby={fieldErrors.address ? 'account-address-error' : undefined}
           className={inputCls}
         />
-        <FieldError id="account-email-error" messages={fieldErrors.email} />
+        <FieldError id="account-address-error" messages={fieldErrors.address} />
       </div>
 
       <p className="text-xs text-ink-soft">{t('memberSince', { date: account.memberSince })}</p>
