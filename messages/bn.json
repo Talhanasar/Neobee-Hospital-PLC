@@ -456,6 +456,7 @@
     "colIncentivePerShare": "প্রতি শেয়ার প্রণোদনা (স্ন্যাপশট)",
     "colReviewedBy": "পর্যালোচনা করেছেন",
     "colReviewedAt": "পর্যালোচনা তারিখ",
+    "colReviewNote": "পর্যালোচনা নোট",
     "colCreatedInvestment": "তৈরি বিনিয়োগ",
     "sectionInvestor": "বিনিয়োগকারী",
     "sectionSubscription": "সাবস্ক্রিপশন",

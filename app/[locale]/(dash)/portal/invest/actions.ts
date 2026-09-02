@@ -73,6 +73,7 @@ export async function submitInvestmentRequestAction(
           kind: 'PAYMENT',
           targetInvestmentId: parsed.data.targetInvestmentId,
           amount: parsed.data.amount,
+          installmentNo: parsed.data.installmentNo ?? null,
           depositMethod: parsed.data.depositMethod,
           depositRef: parsed.data.depositRef,
           depositDate: parsed.data.depositDate,

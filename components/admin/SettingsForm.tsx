@@ -8,12 +8,12 @@ import { updateSettingsAction, type SettingsState, type SettingsFormValues } fro
 const initialState: SettingsState = { ok: false, fieldErrors: {} };
 
 const fields = [
-  { name: 'SHARE_PRICE', label: 'settingsSharePrice', help: 'settingsSharePriceHelp' },
-  { name: 'INCENTIVE_PER_SHARE', label: 'settingsIncentivePerShare', help: 'settingsIncentiveHelp' },
-  { name: 'TARGET_AMOUNT', label: 'settingsTargetAmount', help: 'settingsTargetAmountHelp' },
-  { name: 'TARGET_SHARES', label: 'settingsTargetShares', help: null },
-  { name: 'FOUNDING_AMOUNT', label: 'settingsFoundingAmount', help: 'settingsFoundingAmountHelp' },
-  { name: 'TARGET_ENTREPRENEURS', label: 'settingsTargetEntrepreneurs', help: null },
+  { name: 'SHARE_PRICE', label: 'settingsSharePrice', help: 'settingsSharePriceHelp', min: 1 },
+  { name: 'INCENTIVE_PER_SHARE', label: 'settingsIncentivePerShare', help: 'settingsIncentiveHelp', min: 0 },
+  { name: 'TARGET_AMOUNT', label: 'settingsTargetAmount', help: 'settingsTargetAmountHelp', min: 1 },
+  { name: 'TARGET_SHARES', label: 'settingsTargetShares', help: null, min: 1 },
+  { name: 'FOUNDING_AMOUNT', label: 'settingsFoundingAmount', help: 'settingsFoundingAmountHelp', min: 1 },
+  { name: 'TARGET_ENTREPRENEURS', label: 'settingsTargetEntrepreneurs', help: null, min: 1 },
 ] as const;
 
 function FieldError({ id, messages }: { id: string; messages?: string[] }) {
@@ -38,7 +38,7 @@ export function SettingsForm({ settings }: { settings: SettingsFormValues }) {
               <input
                 name={field.name}
                 type="number"
-                min={1}
+                min={field.min}
                 step={1}
                 required
                 defaultValue={settings[field.name]}

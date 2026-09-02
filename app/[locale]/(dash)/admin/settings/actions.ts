@@ -43,10 +43,23 @@ const bdtInteger = z.preprocess(
     .max(Number.MAX_SAFE_INTEGER, 'Value is too large'),
 );
 
+// Same as bdtInteger but allows 0 (e.g. INCENTIVE_PER_SHARE means "no incentive").
+const bdtIntegerOrZero = z.preprocess(
+  (value) => {
+    const raw = String(value ?? '').trim().replace(/,/g, '');
+    return /^\d+$/.test(raw) ? Number(raw) : value;
+  },
+  z
+    .number()
+    .int('Enter a whole number of taka')
+    .min(0, 'Cannot be negative')
+    .max(Number.MAX_SAFE_INTEGER, 'Value is too large'),
+);
+
 const settingsSchema = z
   .object({
     SHARE_PRICE: bdtInteger,
-    INCENTIVE_PER_SHARE: bdtInteger,
+    INCENTIVE_PER_SHARE: bdtIntegerOrZero,
     TARGET_AMOUNT: bdtInteger,
     TARGET_SHARES: bdtInteger,
     FOUNDING_AMOUNT: bdtInteger,

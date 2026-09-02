@@ -629,6 +629,7 @@ export function demoInvestorForAuthUser(authUserId: string) {
     email: inv.email,
     nationalIdNumber: inv.nationalIdNumber,
     tin: inv.tin ?? null,
+    address: inv.address ?? null,
     approvalStatus: inv.approvalStatus,
     createdAt: inv.createdAt,
     updatedAt: inv.updatedAt,
@@ -807,13 +808,16 @@ export function demoRegistrationStatusForEmail(email: string): { registered: boo
   return { registered: true, approved: investor.approvalStatus === 'APPROVED' };
 }
 
-export function demoSignInWithPassword(email: string, password: string): 'investor' | 'admin' | null {  const norm = email.trim().toLowerCase();
+export function demoSignInWithPassword(email: string, password: string): 'investor' | 'investor-kisti' | 'admin' | null {  const norm = email.trim().toLowerCase();
   // Seeded demo identities keep their @neobee.test auth emails.
   if (norm === 'demo-admin@neobee.test' && password === demoPasswords['demo-auth-admin']) return 'admin';
   if (norm === 'demo-investor@neobee.test' && password === demoPasswords['demo-auth-investor']) return 'investor';
   // Anyone registered during this demo run signs in by their own email.
   const investor = investors.find((i) => i.email?.toLowerCase() === norm);
-  if (investor?.authUserId && demoPasswords[investor.authUserId] === password) return 'investor';
+  if (investor?.authUserId && demoPasswords[investor.authUserId] === password) {
+    if (investor.authUserId === 'demo-auth-investor-kisti') return 'investor-kisti';
+    return 'investor';
+  }
   return null;
 }
 

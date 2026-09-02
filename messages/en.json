@@ -456,6 +456,7 @@
     "colIncentivePerShare": "Per-share incentive (snapshot)",
     "colReviewedBy": "Reviewed by",
     "colReviewedAt": "Reviewed at",
+    "colReviewNote": "Review note",
     "colCreatedInvestment": "Created investment",
     "sectionInvestor": "Investor",
     "sectionSubscription": "Subscription",

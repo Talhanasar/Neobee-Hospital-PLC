@@ -92,7 +92,7 @@ export async function demoLoginAction(role: 'investor' | 'investor-kisti' | 'adm
 }
 
 export type DemoPhoneLoginResult =
-  | { ok: true; role: 'investor' | 'admin' }
+  | { ok: true; role: 'investor' | 'investor-kisti' | 'admin' }
   | { ok: false; error: 'invalidCredentials' };
 
 /** Demo-mode email+password sign-in against the in-memory accounts (the
