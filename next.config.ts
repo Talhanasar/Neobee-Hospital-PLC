@@ -28,6 +28,10 @@ const nextConfig: NextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=15552000; includeSubDomains" },
         ],
       },
+      {
+        source: "/:locale/receipts/:path*",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
     ];
   },
 };

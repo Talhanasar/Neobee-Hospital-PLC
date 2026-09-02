@@ -25,7 +25,7 @@ export default async function AdminRequestsPage({ params }: { params: Promise<{ 
           <p className="mt-2 text-sm text-ink-soft">{t('requestsEmptyHint')}</p>
         </div>
       ) : (
-        <div className="bg-panel border border-line rounded-card overflow-hidden">
+        <div className="bg-panel border border-line rounded-card overflow-x-auto">
           <table className="w-full border-collapse md:min-w-0 min-w-[820px]">
             <caption className="sr-only">{t('requestsTableCaption')}</caption>
             <thead>

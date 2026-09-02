@@ -12,6 +12,7 @@ import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { getTranslations } from 'next-intl/server';
 import { deriveCategory } from '@/lib/money';
+import { storage } from '@/lib/storage';
 
 export default async function AdminRequestDetailPage(
   { params }: { params: Promise<{ locale: string; id: string }> }
@@ -28,20 +29,32 @@ export default async function AdminRequestDetailPage(
 
   if (!request) notFound();
 
+  // Deposit slip: mint a short-lived signed URL only for staff eyes.
+  let slipUrl: string | null = null;
+  if (request.slipFileKey) {
+    try {
+      slipUrl = await storage.getSignedUrl(request.slipFileKey, 300);
+    } catch {
+      slipUrl = null; // missing object must not break the review page
+    }
+  }
+
   const currentSharePrice = settings.SHARE_PRICE;
   const currentIncentivePerShare = settings.INCENTIVE_PER_SHARE;
   const priceChanged = request.sharePrice !== currentSharePrice;
   const incentiveChanged = request.incentivePerShare !== currentIncentivePerShare;
   const priceDiffers = priceChanged || incentiveChanged;
 
-  const category = deriveCategory(request.shares);
+  // Category is only shown for share-purchase requests; PAYMENT requests
+  // carry shares: 0 which deriveCategory rejects.
+  const category = request.kind === 'SHARE_PURCHASE' ? deriveCategory(request.shares) : null;
   const isSubmitted = request.status === 'SUBMITTED';
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="font-display text-2xl font-bold">{t('requestDetailTitle', { id: id.slice(0, 8) })}</h2>
+          <h2 className="font-display text-2xl font-bold">{t('requestDetailTitle', { id })}</h2>
           <p className="text-ink-soft">{t('requestDetailLead')}</p>
         </div>
         <Link href="/admin/requests" className="inline-flex items-center justify-center border border-line bg-panel rounded-lg font-semibold text-ink hover:border-ink focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2 px-3 py-[7px] text-[13px]">
@@ -86,19 +99,30 @@ export default async function AdminRequestDetailPage(
                   <dd className="font-semibold">{methodT(request.depositMethod)}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-ink-soft">{t('colDepositRef')}</dt>
+                  <dt className="text-ink-soft">{t('colDepositRefLabel')}</dt>
                   <dd className="font-mono text-ink">{request.depositRef ?? '—'}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-ink-soft">{t('colDepositDate')}</dt>
                   <dd className="font-semibold">{request.depositDate.toISOString().slice(0, 10)}</dd>
                 </div>
+                {request.installmentNo ? (
+                  <div className="flex justify-between">
+                    <dt className="text-ink-soft">{t('colKistiNo')}</dt>
+                    <dd className="font-mono font-semibold">{request.installmentNo}</dd>
+                  </div>
+                ) : null}
               </dl>
             </section>
 
             <section className="bg-panel border border-line rounded-card p-4">
               <h3 className="font-semibold text-ink mb-3">{t('sectionInvestorNote')}</h3>
               <p className="text-ink-soft whitespace-pre-wrap text-sm">{request.note ?? t('noNote')}</p>
+              {slipUrl ? (
+                <a href={slipUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg border border-line bg-paper px-3.5 py-2 text-sm font-semibold text-ink hover:border-honey">
+                  {t('openSlip')}
+                </a>
+              ) : null}
             </section>
           </div>
 
@@ -174,6 +198,20 @@ export default async function AdminRequestDetailPage(
               <dd className="font-semibold">{request.shares}</dd>
             </div>
             <div className="flex justify-between">
+              <dt className="text-ink-soft">{t('colPaymentPlan')}</dt>
+              <dd className="font-semibold">
+                {request.paymentPlan === 'INSTALLMENT'
+                  ? t('planInstallment', { kisti: request.amount })
+                  : t('planFull')}
+              </dd>
+            </div>
+            {request.installmentNo ? (
+              <div className="flex justify-between">
+                <dt className="text-ink-soft">{t('colKistiNo')}</dt>
+                <dd className="font-mono font-semibold">{request.installmentNo}</dd>
+              </div>
+            ) : null}
+            <div className="flex justify-between">
               <dt className="text-ink-soft">{t('colEntrepreneurRequested')}</dt>
               <dd className="font-semibold">
                 {request.entrepreneurRequested ? (
@@ -188,7 +226,7 @@ export default async function AdminRequestDetailPage(
             </div>
             <div className="flex justify-between">
               <dt className="text-ink-soft">{t('colCategory')}</dt>
-              <dd><CategoryBadge category={category} /></dd>
+              <dd>{category ? <CategoryBadge category={category} /> : <span className="text-ink-soft">—</span>}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-ink-soft">{t('colAmount')}</dt>
@@ -213,7 +251,7 @@ export default async function AdminRequestDetailPage(
               <dd className="font-semibold">{methodT(request.depositMethod)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-ink-soft">{t('colDepositRef')}</dt>
+              <dt className="text-ink-soft">{t('colDepositRefLabel')}</dt>
               <dd className="font-mono text-ink">{request.depositRef ?? '—'}</dd>
             </div>
             <div className="flex justify-between">
@@ -222,6 +260,16 @@ export default async function AdminRequestDetailPage(
             </div>
           </dl>
         </section>
+
+        {slipUrl ? (
+          <section className="bg-panel border border-line rounded-card p-4 md:col-span-2 lg:col-span-3">
+            <h3 className="font-semibold text-ink mb-3">{t('sectionSlip')}</h3>
+            {/* Signed URL, 5-minute expiry, staff-only page — the receipt scan stays private. */}
+            <a href={slipUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-line bg-paper px-3.5 py-2 text-sm font-semibold text-ink hover:border-honey">
+              {t('openSlip')}
+            </a>
+          </section>
+        ) : null}
 
         <section className="bg-panel border border-line rounded-card p-4 md:col-span-2 lg:col-span-3">
           <h3 className="font-semibold text-ink mb-3">{t('sectionInvestorNote')}</h3>
