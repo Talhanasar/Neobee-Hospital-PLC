@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { getSettings, type Settings } from '@/lib/settings';
+import type { InvestmentCategory } from '@/lib/money';
 import type { ReceiptData } from '@/lib/receipt';
 import type { ListInvestmentsInput } from '@/lib/validation';
 import {
@@ -10,6 +11,7 @@ import {
   demoListRequestsForInvestor,
   demoListInvestmentsForInvestor,
   demoListInvestmentsPage,
+  demoListSchedulesForInvestor,
   demoGetAdminStats,
   demoGetRequestForReview,
   demoListRegistrations,
@@ -48,8 +50,8 @@ export async function getPublicSummary(): Promise<PublicSummary> {
 }
 
 // Callers are responsible for authorization before exposing this data.
-export async function getReceiptData(investmentId: string): Promise<ReceiptData | null> {
-  if (isDemoData()) return demoGetReceiptData(investmentId) as ReceiptData | null;
+export async function getReceiptData(investmentId: string, opts?: { installmentNo?: number }): Promise<ReceiptData | null> {
+  if (isDemoData()) return demoGetReceiptData(investmentId, opts?.installmentNo) as ReceiptData | null;
   const row = await prisma.investment.findUnique({
     where: { id: investmentId },
     select: {
@@ -67,9 +69,65 @@ export async function getReceiptData(investmentId: string): Promise<ReceiptData 
       depositDate: true,
       status: true,
       createdAt: true,
+      paymentPlan: true,
     },
   });
   if (!row) return null;
+
+  // No specific kisti requested — return the legacy share-level receipt.
+  if (!opts?.installmentNo) {
+    let totalAmount: number | undefined;
+    let paidToDate: number | undefined;
+    if (row.paymentPlan === 'INSTALLMENT') {
+      totalAmount = row.shares * row.sharePrice;
+      const ledger = await prisma.transaction.aggregate({
+        where: { investmentId, type: 'DEPOSIT' },
+        _sum: { amount: true },
+      });
+      paidToDate = ledger._sum.amount ?? 0;
+    }
+    return {
+      uid: row.uid,
+      code: row.code,
+      investorName: row.investor.name,
+      investorPhone: row.investor.phone,
+      nationalIdNumber: row.investor.nationalIdNumber,
+      category: row.category,
+      shares: row.shares,
+      sharePrice: row.sharePrice,
+      amount: row.amount,
+      isEntrepreneur: row.isEntrepreneur,
+      incentiveAmount: row.incentiveAmount,
+      depositMethod: row.depositMethod,
+      depositRef: row.depositRef,
+      depositDate: row.depositDate,
+      status: row.status,
+      issuedAt: row.createdAt,
+      paymentPlan: row.paymentPlan,
+      totalAmount,
+      paidToDate,
+    };
+  }
+
+  // Per-kisti receipt: look up the schedule and its transaction.
+  const schedule = await prisma.installmentSchedule.findFirst({
+    where: { investmentId, installmentNo: opts.installmentNo },
+    select: { id: true, installmentNo: true, amount: true, status: true },
+  });
+  if (!schedule || schedule.status !== 'PAID') return null;
+
+  const tx = await prisma.transaction.findFirst({
+    where: { installmentScheduleId: schedule.id, type: 'DEPOSIT' },
+    select: { depositMethod: true, depositDate: true },
+  });
+
+  const paidToDateAgg = await prisma.installmentSchedule.aggregate({
+    where: { investmentId, status: 'PAID' },
+    _sum: { amount: true },
+  });
+  const totalAmount = row.shares * row.sharePrice;
+  const paidToDate = paidToDateAgg._sum.amount ?? 0;
+
   return {
     uid: row.uid,
     code: row.code,
@@ -79,14 +137,19 @@ export async function getReceiptData(investmentId: string): Promise<ReceiptData 
     category: row.category,
     shares: row.shares,
     sharePrice: row.sharePrice,
-    amount: row.amount,
+    amount: schedule.amount,
     isEntrepreneur: row.isEntrepreneur,
     incentiveAmount: row.incentiveAmount,
-    depositMethod: row.depositMethod,
-    depositRef: row.depositRef,
-    depositDate: row.depositDate,
+    depositMethod: tx?.depositMethod ?? row.depositMethod,
+    depositRef: null,
+    depositDate: tx?.depositDate ?? row.depositDate,
     status: row.status,
     issuedAt: row.createdAt,
+    paymentPlan: row.paymentPlan,
+    installmentNo: schedule.installmentNo,
+    kistiRef: `${row.uid}-K${schedule.installmentNo}`,
+    totalAmount,
+    paidToDate,
   };
 }
 
@@ -168,15 +231,18 @@ export type InvestmentListRow = {
   id: string;
   uid: string;
   code: string;
-  category: 'SHAREHOLDER' | 'PREMIUM' | 'DIRECTOR';
+  category: InvestmentCategory;
   shares: number;
   amount: number;
   incentiveAmount: number;
   status: 'PENDING' | 'CONFIRMED';
   depositDate: Date;
   depositMethod: 'BANK_DEPOSIT' | 'BANK_TRANSFER' | 'CHEQUE' | 'MOBILE_BANKING';
+  investorId: string;
   investorName: string;
   investorPhone: string;
+  paymentPlan: 'FULL' | 'INSTALLMENT';
+  kistis: Array<{ installmentNo: number; dueDate: Date; amount: number; status: string }>;
 };
 export type InvestmentListResult = { items: InvestmentListRow[]; page: number; pageSize: number; total: number; totalPages: number };
 export async function listInvestmentsPage(input: ListInvestmentsInput): Promise<InvestmentListResult> {
@@ -212,7 +278,12 @@ export async function listInvestmentsPage(input: ListInvestmentsInput): Promise<
         status: true,
         depositDate: true,
         depositMethod: true,
-        investor: { select: { name: true, phone: true } },
+        paymentPlan: true,
+        installmentSchedules: {
+          orderBy: { installmentNo: 'asc' as const },
+          select: { installmentNo: true, dueDate: true, amount: true, status: true },
+        },
+        investor: { select: { id: true, name: true, phone: true } },
       },
     }),
   ]);
@@ -228,8 +299,11 @@ export async function listInvestmentsPage(input: ListInvestmentsInput): Promise<
       status: row.status,
       depositDate: row.depositDate,
       depositMethod: row.depositMethod,
+      investorId: row.investor.id,
       investorName: row.investor.name,
       investorPhone: row.investor.phone,
+      paymentPlan: row.paymentPlan,
+      kistis: row.installmentSchedules,
     })),
     page: input.page,
     pageSize: input.pageSize,
@@ -242,7 +316,7 @@ export type PortalRow = {
   id: string;
   uid: string;
   code: string;
-  category: 'SHAREHOLDER' | 'PREMIUM' | 'DIRECTOR';
+  category: InvestmentCategory;
   shares: number;
   amount: number;
   incentiveAmount: number;
@@ -250,12 +324,16 @@ export type PortalRow = {
   depositDate: Date;
   confirmedAt: Date | null;
   depositMethod: 'BANK_DEPOSIT' | 'BANK_TRANSFER' | 'CHEQUE' | 'MOBILE_BANKING';
+  paymentPlan: 'FULL' | 'INSTALLMENT';
+  sharePrice: number;
+  totalAmount: number; // face value: shares × sharePrice (undiscounted)
+  fullyPaidAt: Date | null;
 };
 
 // Ownership boundary: this query must stay scoped to exactly one investorId and never widen.
 export async function listInvestmentsForInvestor(investorId: string): Promise<PortalRow[]> {
   if (isDemoData()) return demoListInvestmentsForInvestor(investorId) as PortalRow[];
-  return await prisma.investment.findMany({
+  const rows = await prisma.investment.findMany({
     where: { investorId },
     orderBy: { createdAt: 'desc' },
     select: {
@@ -270,8 +348,48 @@ export async function listInvestmentsForInvestor(investorId: string): Promise<Po
       depositDate: true,
       confirmedAt: true,
       depositMethod: true,
+      paymentPlan: true,
+      sharePrice: true,
+      fullyPaidAt: true,
     },
   });
+  return rows.map((row) => ({
+    ...row,
+    totalAmount: row.shares * row.sharePrice,
+  }));
+}
+
+export type PortalScheduleRow = {
+  id: string;
+  investmentId: string;
+  installmentNo: number;
+  dueDate: Date;
+  amount: number;
+  status: 'SCHEDULED' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+};
+
+// Kisti schedule rows for the investor's own investments, keyed by investment id.
+export async function listSchedulesForInvestor(investorId: string): Promise<Map<string, PortalScheduleRow[]>> {
+  if (isDemoData()) return demoListSchedulesForInvestor(investorId) as unknown as Map<string, PortalScheduleRow[]>;
+  const schedules = await prisma.installmentSchedule.findMany({
+    where: { investment: { investorId } },
+    orderBy: [{ investmentId: 'asc' }, { installmentNo: 'asc' }],
+    select: {
+      id: true,
+      investmentId: true,
+      installmentNo: true,
+      dueDate: true,
+      amount: true,
+      status: true,
+    },
+  });
+  const map = new Map<string, PortalScheduleRow[]>();
+  for (const s of schedules) {
+    const list = map.get(s.investmentId) ?? [];
+    list.push(s);
+    map.set(s.investmentId, list);
+  }
+  return map;
 }
 
 export type RequestListRow = {
@@ -279,6 +397,7 @@ export type RequestListRow = {
   status: 'SUBMITTED' | 'APPROVED' | 'REJECTED';
   kind: 'SHARE_PURCHASE' | 'PAYMENT';
   targetInvestmentUid: string | null;
+  installmentNo: number | null;
   shares: number;
   entrepreneurRequested: boolean;
   sharePrice: number;
@@ -306,6 +425,7 @@ export async function listRequestsForInvestor(investorId: string): Promise<Reque
       status: true,
       kind: true,
       targetInvestment: { select: { uid: true } },
+      installmentNo: true,
       shares: true,
       entrepreneurRequested: true,
       sharePrice: true,
@@ -390,12 +510,15 @@ export type RequestForReview = {
   targetInvestmentUid: string | null;
   shares: number;
   entrepreneurRequested: boolean;
+  paymentPlan: 'FULL' | 'INSTALLMENT' | null;
+  installmentNo: number | null;
   sharePrice: number;
   incentivePerShare: number;
   amount: number;
   depositMethod: 'BANK_DEPOSIT' | 'BANK_TRANSFER' | 'CHEQUE' | 'MOBILE_BANKING';
   depositRef: string | null;
   depositDate: Date;
+  slipFileKey: string | null;
   note: string | null;
   status: 'SUBMITTED' | 'APPROVED' | 'REJECTED';
   reviewNote: string | null;
@@ -420,12 +543,15 @@ export async function getRequestForReview(id: string): Promise<RequestForReview 
       targetInvestment: { select: { uid: true } },
       shares: true,
       entrepreneurRequested: true,
+      paymentPlan: true,
+      installmentNo: true,
       sharePrice: true,
       incentivePerShare: true,
       amount: true,
       depositMethod: true,
       depositRef: true,
       depositDate: true,
+      slipFileKey: true,
       note: true,
       status: true,
       reviewNote: true,
@@ -481,4 +607,111 @@ export async function listRegistrations(): Promise<RegistrationRow[]> {
 export async function countPendingRegistrations(): Promise<number> {
   if (isDemoData()) return demoCountPendingRegistrations();
   return prisma.investor.count({ where: { approvalStatus: 'PENDING' } });
+}
+
+export type InvestorDetail = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  nationalIdNumber: string | null;
+  address: string | null;
+  approvalStatus: 'PENDING' | 'APPROVED';
+  createdAt: Date;
+  investments: Array<{
+    id: string;
+    uid: string;
+    paymentPlan: 'FULL' | 'INSTALLMENT';
+    shares: number;
+    amount: number;
+    category: InvestmentCategory;
+    status: 'PENDING' | 'CONFIRMED';
+    depositDate: Date;
+    depositMethod: 'BANK_DEPOSIT' | 'BANK_TRANSFER' | 'CHEQUE' | 'MOBILE_BANKING';
+    fullyPaidAt: Date | null;
+    certificateRef: string | null;
+    kistis: Array<{ installmentNo: number; dueDate: Date; amount: number; status: string }>;
+  }>;
+  requests: Array<{
+    id: string;
+    kind: 'SHARE_PURCHASE' | 'PAYMENT';
+    shares: number;
+    amount: number;
+    status: 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+    depositDate: Date;
+    createdAt: Date;
+  }>;
+};
+
+// Staff-only: one investor's full profile with their investments, kisti
+// schedules, and request history.
+export async function getInvestorDetail(id: string): Promise<InvestorDetail | null> {
+  if (isDemoData()) {
+    const demo = (await import('@/data/demo/store')).demoGetInvestorDetail(id);
+    if (!demo) return null;
+    return demo as unknown as InvestorDetail;
+  }
+  const row = await prisma.investor.findUnique({
+    where: { id },
+    include: {
+      investments: {
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          uid: true,
+          paymentPlan: true,
+          shares: true,
+          amount: true,
+          category: true,
+          status: true,
+          depositDate: true,
+          depositMethod: true,
+          fullyPaidAt: true,
+          certificate: { select: { id: true } },
+          installmentSchedules: {
+            orderBy: { installmentNo: 'asc' as const },
+            select: { installmentNo: true, dueDate: true, amount: true, status: true },
+          },
+        },
+      },
+      requests: {
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          kind: true,
+          shares: true,
+          amount: true,
+          status: true,
+          depositDate: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    phone: row.phone,
+    email: row.email,
+    nationalIdNumber: row.nationalIdNumber,
+    address: row.address,
+    approvalStatus: row.approvalStatus,
+    createdAt: row.createdAt,
+    investments: row.investments.map((i) => ({
+      id: i.id,
+      uid: i.uid,
+      paymentPlan: i.paymentPlan,
+      shares: i.shares,
+      amount: i.amount,
+      category: i.category,
+      status: i.status,
+      depositDate: i.depositDate,
+      depositMethod: i.depositMethod,
+      fullyPaidAt: i.fullyPaidAt,
+      certificateRef: i.certificate ? `${i.uid}-CERT` : null,
+      kistis: i.installmentSchedules,
+    })),
+    requests: row.requests,
+  };
 }

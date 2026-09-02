@@ -3,15 +3,19 @@ import { prisma } from '@/lib/db';
 import {
   assertEntrepreneurEligible,
   calculateAmount,
+  calculateFullPaymentAmount,
   calculateIncentive,
+  canPayByInstallment,
   deriveCategory,
   ENTREPRENEUR_MIN_SHARES,
+  installmentPerKisti,
   MAX_SHARES,
   MIN_SHARES,
+  type PaymentPlanValue,
 } from '@/lib/money';
 import { getSettings } from '@/lib/settings';
 import { actionVerbs, writeAuditLog } from '@/lib/audit';
-import { ActorType, InvestmentRequestStatus, InvestmentStatus, DepositMethod, TransactionType, RequestKind } from '@/lib/generated/prisma/client';
+import { ActorType, InstallmentStatus, InvestmentRequestStatus, InvestmentStatus, DepositMethod, TransactionType, RequestKind } from '@/lib/generated/prisma/client';
 import { createInvestmentRecord } from '@/lib/investments';
 
 export type RequestMeta = { ipAddress: string | null; userAgent: string | null };
@@ -20,6 +24,8 @@ export interface SubmitInvestmentRequestInput {
   investorId: string;
   shares: number;
   entrepreneurRequested: boolean;
+  paymentPlan?: PaymentPlanValue;
+  slipFileKey?: string | null;
   depositMethod: DepositMethod;
   depositRef?: string | null;
   depositDate: Date;
@@ -62,11 +68,19 @@ export async function submitInvestmentRequest(
   if (input.entrepreneurRequested && input.shares < ENTREPRENEUR_MIN_SHARES) {
     throw new Error(`Entrepreneur requires at least ${ENTREPRENEUR_MIN_SHARES} shares`);
   }
+  const paymentPlan: PaymentPlanValue = input.paymentPlan ?? 'FULL';
+  if (paymentPlan === 'INSTALLMENT' && !canPayByInstallment(input.shares)) {
+    throw new Error('Installment payment is only available for exactly 1 share');
+  }
 
   const settings = await getSettings();
   const sharePrice = settings.SHARE_PRICE;
   const incentivePerShare = settings.INCENTIVE_PER_SHARE;
-  const amount = calculateAmount(input.shares, sharePrice);
+  // FULL: the whole discounted total is deposited up front.
+  // INSTALLMENT: only kisti 1 is deposited now; the rest is scheduled on approval.
+  const amount = paymentPlan === 'FULL'
+    ? calculateFullPaymentAmount(input.shares, sharePrice, settings.FULL_PAYMENT_DISCOUNT_PER_SHARE)
+    : installmentPerKisti(input.shares, settings.INSTALLMENT_UNIT_AMOUNT);
 
   return await prisma.$transaction(async (tx) => {
     const openCount = await countSubmittedRequestsForInvestor(tx, input.investorId);
@@ -80,6 +94,8 @@ export async function submitInvestmentRequest(
         kind: RequestKind.SHARE_PURCHASE,
         shares: input.shares,
         entrepreneurRequested: input.entrepreneurRequested,
+        paymentPlan,
+        slipFileKey: input.slipFileKey ?? null,
         sharePrice,
         incentivePerShare,
         amount,
@@ -100,7 +116,7 @@ export async function submitInvestmentRequest(
         targetId: request.id,
         ipAddress: requestMeta?.ipAddress ?? null,
         userAgent: requestMeta?.userAgent ?? null,
-        metadata: { shares: input.shares, entrepreneurRequested: input.entrepreneurRequested, amount },
+        metadata: { shares: input.shares, entrepreneurRequested: input.entrepreneurRequested, paymentPlan, amount },
       },
       tx,
     );
@@ -151,11 +167,21 @@ export async function approveInvestmentRequest(
     const effectiveDepositMethod = input.depositMethod ?? request.depositMethod;
     const effectiveDepositRef = normalizeDepositRef(input.depositRef ?? request.depositRef);
     const effectiveDepositDate = input.depositDate ?? request.depositDate;
+    const paymentPlan: PaymentPlanValue = request.paymentPlan ?? 'FULL';
+    if (paymentPlan === 'INSTALLMENT' && !canPayByInstallment(effectiveShares)) {
+      throw new Error('Installment payment is only available for exactly 1 share');
+    }
 
     assertEntrepreneurEligible(effectiveShares, effectiveIsEntrepreneur);
     const category = deriveCategory(effectiveShares);
     const incentiveAmount = calculateIncentive(effectiveShares, effectiveIsEntrepreneur, request.incentivePerShare);
-    const amount = calculateAmount(effectiveShares, request.sharePrice);
+    // Ledger amount: FULL = discounted total; INSTALLMENT = kisti 1 only.
+    const settings = await getSettings();
+    const amount = paymentPlan === 'FULL'
+      ? calculateFullPaymentAmount(effectiveShares, request.sharePrice, settings.FULL_PAYMENT_DISCOUNT_PER_SHARE)
+      : request.amount;
+    const totalAmount = calculateAmount(effectiveShares, request.sharePrice);
+    const discountPerShare = paymentPlan === 'FULL' ? settings.FULL_PAYMENT_DISCOUNT_PER_SHARE : 0;
 
     const nothingChanged =
       effectiveShares === request.shares &&
@@ -164,9 +190,9 @@ export async function approveInvestmentRequest(
       effectiveDepositRef === request.depositRef &&
       new Date(effectiveDepositDate).getTime() === new Date(request.depositDate).getTime();
 
-    const investmentStatus = nothingChanged ? InvestmentStatus.CONFIRMED : InvestmentStatus.PENDING;
-    const confirmedAt = nothingChanged ? new Date() : null;
-    const confirmedByInvestorId = nothingChanged ? request.investorId : null;
+    // Approval by staff IS the confirmation — the investor self-confirm flow is retired.
+    const investmentStatus = InvestmentStatus.CONFIRMED;
+    const confirmedAt = new Date();
 
     const investment = await createInvestmentRecord(tx, {
       investorId: request.investorId,
@@ -176,7 +202,11 @@ export async function approveInvestmentRequest(
       incentiveAmount,
       sharePrice: request.sharePrice,
       incentivePerShare: request.incentivePerShare,
+      discountPerShare,
+      paymentPlan,
+      slipFileKey: request.slipFileKey,
       amount,
+      totalAmount,
       depositMethod: effectiveDepositMethod,
       depositRef: effectiveDepositRef,
       depositDate: effectiveDepositDate,
@@ -185,12 +215,10 @@ export async function approveInvestmentRequest(
       status: investmentStatus,
     });
 
-    if (nothingChanged) {
-      await tx.investment.update({
-        where: { id: investment.id },
-        data: { confirmedAt, confirmedByInvestorId },
-      });
-    }
+    await tx.investment.update({
+      where: { id: investment.id },
+      data: { confirmedAt, confirmedByInvestorId: request.investorId },
+    });
 
     const updatedRequest = await tx.investmentRequest.update({
       where: { id: input.requestId },
@@ -290,6 +318,8 @@ export interface SubmitPaymentRequestInput {
   investorId: string;
   targetInvestmentId: string;
   amount: number;
+  installmentNo?: number | null;
+  slipFileKey?: string | null;
   depositMethod: DepositMethod;
   depositRef?: string | null;
   depositDate: Date;
@@ -313,10 +343,27 @@ export async function submitPaymentRequest(
     // Ownership boundary: the target investment must belong to the requester.
     const target = await tx.investment.findFirst({
       where: { id: input.targetInvestmentId, investorId: input.investorId },
-      select: { id: true },
+      select: { id: true, paymentPlan: true },
     });
     if (!target) {
       throw new Error('Target investment not found for this investor');
+    }
+
+    // Kisti payments must target an existing unpaid schedule row of the investor's own investment.
+    if (input.installmentNo !== null && input.installmentNo !== undefined) {
+      if (target.paymentPlan !== 'INSTALLMENT') {
+        throw new Error('This investment is not on an installment plan');
+      }
+      const schedule = await tx.installmentSchedule.findFirst({
+        where: { investmentId: target.id, installmentNo: input.installmentNo },
+        select: { status: true },
+      });
+      if (!schedule) {
+        throw new Error('Installment schedule row not found for this kisti');
+      }
+      if (schedule.status === InstallmentStatus.PAID) {
+        throw new Error('This kisti is already paid');
+      }
     }
 
     const settings = await getSettings();
@@ -327,6 +374,8 @@ export async function submitPaymentRequest(
         targetInvestmentId: target.id,
         shares: 0,
         entrepreneurRequested: false,
+        installmentNo: input.installmentNo ?? null,
+        slipFileKey: input.slipFileKey ?? null,
         sharePrice: settings.SHARE_PRICE,
         incentivePerShare: settings.INCENTIVE_PER_SHARE,
         amount: input.amount,
@@ -347,7 +396,7 @@ export async function submitPaymentRequest(
         targetId: request.id,
         ipAddress: requestMeta?.ipAddress ?? null,
         userAgent: requestMeta?.userAgent ?? null,
-        metadata: { kind: 'PAYMENT', targetInvestmentId: target.id, amount: input.amount },
+        metadata: { kind: 'PAYMENT', targetInvestmentId: target.id, installmentNo: input.installmentNo ?? null, amount: input.amount },
       },
       tx,
     );
@@ -394,6 +443,25 @@ export async function approvePaymentRequest(
       throw new Error('Payment request has no target investment');
     }
 
+    // Kisti payment: the request targets a specific installment schedule row.
+    let installmentScheduleId: string | null = null;
+    if (request.installmentNo !== null && request.installmentNo !== undefined) {
+      const schedule = await tx.installmentSchedule.findFirst({
+        where: {
+          investmentId: request.targetInvestmentId,
+          installmentNo: request.installmentNo,
+        },
+        select: { id: true, status: true },
+      });
+      if (!schedule) {
+        throw new Error('Installment schedule row not found for this kisti');
+      }
+      if (schedule.status === InstallmentStatus.PAID) {
+        throw new Error('This kisti is already paid');
+      }
+      installmentScheduleId = schedule.id;
+    }
+
     const transaction = await tx.transaction.create({
       data: {
         investmentId: request.targetInvestmentId,
@@ -401,10 +469,34 @@ export async function approvePaymentRequest(
         type: TransactionType.DEPOSIT,
         depositMethod: request.depositMethod,
         depositDate: request.depositDate,
+        installmentScheduleId,
         recordedByStaffId: input.staffId,
         note: input.reviewNote ?? request.note ?? null,
       },
     });
+
+    if (installmentScheduleId) {
+      await tx.installmentSchedule.update({
+        where: { id: installmentScheduleId },
+        data: { status: InstallmentStatus.PAID },
+      });
+      // All kistis paid → the plan is complete: stamp fullyPaidAt and issue the certificate.
+      const schedules = await tx.installmentSchedule.findMany({
+        where: { investmentId: request.targetInvestmentId },
+        select: { status: true },
+      });
+      if (schedules.length > 0 && schedules.every((s) => s.status === InstallmentStatus.PAID)) {
+        const investment = await tx.investment.update({
+          where: { id: request.targetInvestmentId },
+          data: { fullyPaidAt: new Date() },
+        });
+        await tx.certificate.upsert({
+          where: { investmentId: investment.id },
+          create: { investmentId: investment.id },
+          update: {},
+        });
+      }
+    }
 
     const updatedRequest = await tx.investmentRequest.update({
       where: { id: input.requestId },

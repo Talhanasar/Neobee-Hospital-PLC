@@ -40,6 +40,7 @@ export async function getAuthUser(): Promise<{ id: string } | null> {
   if (isDemoData()) {
     const demoRole = (await cookies()).get('neobee-demo-role')?.value;
     if (demoRole === 'investor') return { id: 'demo-auth-investor' };
+    if (demoRole === 'investor-kisti') return { id: 'demo-auth-investor-kisti' };
     if (demoRole === 'admin') return { id: 'demo-auth-admin' };
     return null;
   }

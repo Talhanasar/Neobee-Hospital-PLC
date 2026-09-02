@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { ENTREPRENEUR_MIN_SHARES, MAX_SHARES, MIN_SHARES } from '@/lib/money';
+import { ENTREPRENEUR_MIN_SHARES, MAX_SHARES, MIN_SHARES, canPayByInstallment } from '@/lib/money';
+
+export const SLIP_MAX_BYTES = 5 * 1024 * 1024; // 5 MB per deposit slip upload.
+export const SLIP_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
 
 export function normalizeBangladeshiPhone(phone: string): string {
   const value = phone.trim();
@@ -60,7 +63,7 @@ export const listInvestmentsSchema = z.object({
     return Math.min(100, Math.max(1, Math.trunc(numeric)));
   }, z.number().int().min(1).max(100).default(25)),
   status: z.enum(['PENDING', 'CONFIRMED']).optional(),
-  category: z.enum(['SHAREHOLDER', 'PREMIUM', 'DIRECTOR']).optional(),
+  category: z.enum(['SHAREHOLDER', 'PREMIUM', 'DIRECTOR', 'GOLDEN_DIRECTOR']).optional(),
   search: z.string().trim().max(200).optional(),
 });
 
@@ -117,15 +120,25 @@ export const rejectInvestmentRequestSchema = z
   })
   .strict();
 
+// Email is deliberately absent: it is the Supabase Auth identity (OTP login,
+// password reset) and must never diverge from the Investor row. Phone and TIN
+// are editable from the account form; phone stays @unique in the Investor model
+// (the action enforces the duplicate-phone rule explicitly).
 export const createInvestorProfileSchema = z
   .object({
     name: z.string().trim().min(1, { message: 'Name is required' }).max(200),
-    email: z.email().optional(),
+    phone: phoneSchema,
     nationalIdNumber: z
       .string()
       .trim()
       .min(1, { message: 'NID / passport number is required' })
       .max(50),
+    address: z.string().trim().max(500).optional(),
+    tin: z
+      .string()
+      .trim()
+      .regex(/^[0-9A-Za-z\-]{0,20}$/, { message: 'TIN must be ≤20 letters/digits/hyphens' })
+      .optional(),
   })
   .strict();
 
@@ -157,6 +170,47 @@ export const completeRegistrationSchema = z
   })
   .strict();
 
+// Investor self-registration wizard: personal details + share subscription +
+// deposit proof, submitted together after the email OTP check. The share
+// amount is recomputed server-side from settings — the client's displayed
+// amount is never trusted.
+export const investorSignupSchema = z
+  .object({
+    name: z.string().trim().min(1, { message: 'Name is required' }).max(200),
+    phone: phoneSchema,
+    email: z.email({ message: 'A valid email is required' }),
+    address: z.string().trim().max(500).optional(),
+    nationalIdNumber: z.string().trim().min(1, { message: 'NID / passport number is required' }).max(50),
+    password: z.string().min(6, { message: 'Password must be at least 6 characters' }).max(72),
+    shares: z.coerce.number().int().min(MIN_SHARES).max(MAX_SHARES),
+    paymentPlan: z.enum(['FULL', 'INSTALLMENT']),
+    depositMethod: z.enum(['BANK_DEPOSIT', 'BANK_TRANSFER', 'CHEQUE', 'MOBILE_BANKING']),
+    depositRef: z.string().trim().max(100).transform((v) => (v === '' ? null : v)).nullish(),
+    depositDate: dateSchema,
+    note: z.string().trim().max(2000).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.paymentPlan === 'INSTALLMENT' && !canPayByInstallment(value.shares)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['paymentPlan'],
+        message: 'Installment (kisti) payment is only available for exactly 1 share',
+      });
+    }
+  });
+export type InvestorSignupInput = z.infer<typeof investorSignupSchema>;
+
+// The slip File travels via FormData, not JSON — validated alongside the schema.
+export function validateSlipFile(file: File): string | null {
+  if (file.size === 0) return 'Deposit slip image is required';
+  if (file.size > SLIP_MAX_BYTES) return 'Deposit slip must be 5 MB or smaller';
+  if (!SLIP_ALLOWED_TYPES.includes(file.type as (typeof SLIP_ALLOWED_TYPES)[number])) {
+    return 'Deposit slip must be a JPG, PNG, WebP, or PDF file';
+  }
+  return null;
+}
+
 export const submitLeadSchema = z
   .object({
     name: z.string().trim().min(1, { message: 'Name is required' }).max(200),
@@ -172,6 +226,7 @@ export const submitPaymentRequestSchema = z
   .object({
     targetInvestmentId: z.string().min(1, { message: 'Choose the investment this payment belongs to' }),
     amount: z.coerce.number().int().min(1, { message: 'Amount must be at least ৳1' }),
+    installmentNo: z.coerce.number().int().min(1).max(4).optional(),
     depositMethod: z.enum(['BANK_DEPOSIT', 'BANK_TRANSFER', 'CHEQUE', 'MOBILE_BANKING']),
     depositRef: z.string().trim().max(100).transform((v) => (v === '' ? null : v)).nullish(),
     depositDate: dateSchema,

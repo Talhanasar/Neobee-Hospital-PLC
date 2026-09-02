@@ -2,11 +2,14 @@ import { randomInt as nodeRandomInt } from 'node:crypto';
 
 export const DEFAULT_SETTINGS = Object.freeze({
   SHARE_PRICE: 200000,
-  INCENTIVE_PER_SHARE: 20000,
-  TARGET_AMOUNT: 3000000000,
+  INCENTIVE_PER_SHARE: 0, // retired: the entrepreneur bonus is superseded by the full-payment discount; kept as a setting so historical snapshots stay meaningful.
+  TARGET_AMOUNT: 1800000000, // ৳180 crore programme target.
   TARGET_SHARES: 15000,
   FOUNDING_AMOUNT: 100000000,
   TARGET_ENTREPRENEURS: 50,
+  FULL_PAYMENT_DISCOUNT_PER_SHARE: 10000, // ৳10,000 off per share when paid in full at once.
+  INSTALLMENT_UNIT_AMOUNT: 50000, // per-kisti amount per share (4 kistis × ৳50,000 = ৳2,00,000 for one share).
+  INSTALLMENT_COUNT: 4,
 } as const);
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;
@@ -24,10 +27,19 @@ export const InvestmentCategory = Object.freeze({
   SHAREHOLDER: 'SHAREHOLDER',
   PREMIUM: 'PREMIUM',
   DIRECTOR: 'DIRECTOR',
+  GOLDEN_DIRECTOR: 'GOLDEN_DIRECTOR',
 } as const);
 
 export type InvestmentCategory =
   (typeof InvestmentCategory)[keyof typeof InvestmentCategory];
+
+export const PaymentPlan = Object.freeze({
+  FULL: 'FULL',
+  INSTALLMENT: 'INSTALLMENT',
+} as const);
+
+export type PaymentPlanValue =
+  (typeof PaymentPlan)[keyof typeof PaymentPlan];
 
 function assertPositiveInteger(value: number, name: string): void {
   if (!Number.isInteger(value) || value <= 0) {
@@ -52,6 +64,7 @@ function numberToWords(x: number): string {
 
 export function deriveCategory(shares: number): InvestmentCategory {
   assertPositiveInteger(shares, 'shares');
+  if (shares >= 25) return InvestmentCategory.GOLDEN_DIRECTOR;
   if (shares >= 10) return InvestmentCategory.DIRECTOR;
   if (shares >= 5) return InvestmentCategory.PREMIUM;
   return InvestmentCategory.SHAREHOLDER;
@@ -124,4 +137,44 @@ export function formatBdt(amount: number): string {
   }
   // Negative ledger amounts are intentional for refunds and distributions.
   return amount.toLocaleString('en-IN');
+}
+
+// Installment plans are currently offered only for exactly one share;
+// multi-share kisti rules are a future business decision, not a schema limit.
+export function canPayByInstallment(shares: number): boolean {
+  assertPositiveInteger(shares, 'shares');
+  return shares === 1;
+}
+
+export function fullPaymentPerShare(sharePrice: number, discountPerShare: number): number {
+  assertPositiveInteger(sharePrice, 'sharePrice');
+  if (!Number.isInteger(discountPerShare) || discountPerShare < 0 || discountPerShare >= sharePrice) {
+    throw new RangeError('discountPerShare must be a non-negative integer below sharePrice');
+  }
+  return sharePrice - discountPerShare;
+}
+
+export function calculateFullPaymentAmount(shares: number, sharePrice: number, discountPerShare: number): number {
+  return calculateAmount(shares, fullPaymentPerShare(sharePrice, discountPerShare));
+}
+
+export function installmentPerKisti(shares: number, unitAmount: number): number {
+  return calculateAmount(shares, unitAmount);
+}
+
+// Payment deadlines for kistis 1–4 (inclusive end dates), fixed by the business plan.
+export const INSTALLMENT_DEADLINES = Object.freeze([
+  '2026-08-31',
+  '2026-12-31',
+  '2027-06-30',
+  '2027-12-31',
+] as const);
+
+export function kistiRef(uid: string, installmentNo: number): string {
+  assertPositiveInteger(installmentNo, 'installmentNo');
+  return `${uid}-K${installmentNo}`;
+}
+
+export function certRef(uid: string): string {
+  return `${uid}-CERT`;
 }

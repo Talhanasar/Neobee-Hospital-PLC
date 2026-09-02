@@ -1,15 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SETTINGS,
+  INSTALLMENT_DEADLINES,
   assertEntrepreneurEligible,
   amountInWords,
   calculateAmount,
+  calculateFullPaymentAmount,
   calculateIncentive,
+  canPayByInstallment,
+  certRef,
   deriveCategory,
   formatBdt,
   formatUid,
+  fullPaymentPerShare,
   generateVerificationCode,
+  installmentPerKisti,
   InvestmentCategory,
+  kistiRef,
 } from './money';
 
 describe('DEFAULT_SETTINGS', () => {
@@ -17,11 +24,14 @@ describe('DEFAULT_SETTINGS', () => {
     expect(Object.isFrozen(DEFAULT_SETTINGS)).toBe(true);
     expect(DEFAULT_SETTINGS).toEqual({
       SHARE_PRICE: 200000,
-      INCENTIVE_PER_SHARE: 20000,
-      TARGET_AMOUNT: 3000000000,
+      INCENTIVE_PER_SHARE: 0,
+      TARGET_AMOUNT: 1800000000,
       TARGET_SHARES: 15000,
       FOUNDING_AMOUNT: 100000000,
       TARGET_ENTREPRENEURS: 50,
+      FULL_PAYMENT_DISCOUNT_PER_SHARE: 10000,
+      INSTALLMENT_UNIT_AMOUNT: 50000,
+      INSTALLMENT_COUNT: 4,
     });
   });
 });
@@ -34,7 +44,10 @@ describe('deriveCategory', () => {
     expect(deriveCategory(9)).toBe(InvestmentCategory.PREMIUM);
     expect(deriveCategory(10)).toBe(InvestmentCategory.DIRECTOR);
     expect(deriveCategory(11)).toBe(InvestmentCategory.DIRECTOR);
-    expect(deriveCategory(500)).toBe(InvestmentCategory.DIRECTOR);
+    expect(deriveCategory(24)).toBe(InvestmentCategory.DIRECTOR);
+    expect(deriveCategory(25)).toBe(InvestmentCategory.GOLDEN_DIRECTOR);
+    expect(deriveCategory(30)).toBe(InvestmentCategory.GOLDEN_DIRECTOR);
+    expect(deriveCategory(500)).toBe(InvestmentCategory.GOLDEN_DIRECTOR);
   });
 
   it('rejects invalid share counts', () => {
@@ -65,12 +78,12 @@ describe('calculateAmount', () => {
 
 describe('calculateIncentive', () => {
   it('returns zero when the entrepreneur flag is false', () => {
-    expect(calculateIncentive(10, false, DEFAULT_SETTINGS.INCENTIVE_PER_SHARE)).toBe(0);
+    expect(calculateIncentive(10, false, 20000)).toBe(0);
     expect(calculateIncentive(3, false, 60000)).toBe(0);
   });
 
   it('uses the supplied incentive rate', () => {
-    expect(calculateIncentive(10, true, DEFAULT_SETTINGS.INCENTIVE_PER_SHARE)).toBe(200000);
+    expect(calculateIncentive(10, true, 20000)).toBe(200000);
     expect(calculateIncentive(10, true, 60000)).toBe(600000);
   });
 
@@ -192,5 +205,75 @@ describe('formatBdt', () => {
     for (const value of [2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => formatBdt(value)).toThrow(RangeError);
     }
+  });
+});
+
+describe('canPayByInstallment', () => {
+  it('allows exactly one share', () => {
+    expect(canPayByInstallment(1)).toBe(true);
+  });
+
+  it('rejects multi-share and invalid counts', () => {
+    expect(canPayByInstallment(2)).toBe(false);
+    expect(canPayByInstallment(10)).toBe(false);
+    for (const value of [0, -1, 1.5, Number.NaN]) {
+      expect(() => canPayByInstallment(value)).toThrow(RangeError);
+    }
+  });
+});
+
+describe('fullPaymentPerShare', () => {
+  it('subtracts the discount', () => {
+    expect(fullPaymentPerShare(200000, 10000)).toBe(190000);
+    expect(fullPaymentPerShare(200000, 0)).toBe(200000);
+  });
+
+  it('rejects invalid discounts', () => {
+    expect(() => fullPaymentPerShare(200000, -1)).toThrow(RangeError);
+    expect(() => fullPaymentPerShare(200000, 200000)).toThrow(RangeError);
+    expect(() => fullPaymentPerShare(200000, 1.5)).toThrow(RangeError);
+  });
+});
+
+describe('calculateFullPaymentAmount', () => {
+  it('applies the discount across all shares', () => {
+    expect(calculateFullPaymentAmount(1, 200000, 10000)).toBe(190000);
+    expect(calculateFullPaymentAmount(3, 200000, 10000)).toBe(570000);
+    expect(calculateFullPaymentAmount(2, 200000, 0)).toBe(400000);
+  });
+});
+
+describe('installmentPerKisti', () => {
+  it('multiplies shares by the unit amount', () => {
+    expect(installmentPerKisti(1, 50000)).toBe(50000);
+    expect(installmentPerKisti(2, 50000)).toBe(100000);
+  });
+});
+
+describe('INSTALLMENT_DEADLINES', () => {
+  it('has four ascending deadlines', () => {
+    expect(INSTALLMENT_DEADLINES).toHaveLength(4);
+    const dates = [...INSTALLMENT_DEADLINES].map((d) => new Date(d).getTime());
+    for (let i = 1; i < dates.length; i += 1) {
+      expect(dates[i]).toBeGreaterThan(dates[i - 1]);
+    }
+  });
+});
+
+describe('kistiRef', () => {
+  it('derives the kisti id from the share uid', () => {
+    expect(kistiRef('NEO-0012', 2)).toBe('NEO-0012-K2');
+    expect(kistiRef('NEO-0001', 4)).toBe('NEO-0001-K4');
+  });
+
+  it('rejects invalid installment numbers', () => {
+    expect(() => kistiRef('NEO-0012', 0)).toThrow(RangeError);
+    expect(() => kistiRef('NEO-0012', 1.5)).toThrow(RangeError);
+  });
+});
+
+describe('certRef', () => {
+  it('derives the certificate number from the share uid', () => {
+    expect(certRef('NEO-0012')).toBe('NEO-0012-CERT');
   });
 });

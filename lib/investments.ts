@@ -7,11 +7,13 @@ import {
   deriveCategory,
   formatUid,
   generateVerificationCode,
+  INSTALLMENT_DEADLINES,
   type InvestmentCategory,
+  type PaymentPlanValue,
 } from '@/lib/money';
 import { getSettings } from '@/lib/settings';
 import { actionVerbs, writeAuditLog } from '@/lib/audit';
-import { ActorType, InvestmentStatus, TransactionType, DepositMethod } from '@/lib/generated/prisma/client';
+import { ActorType, InvestmentStatus, InstallmentStatus, TransactionType, DepositMethod } from '@/lib/generated/prisma/client';
 import type { RegisterInvestmentInput } from '@/lib/validation';
 
 export type RequestMeta = { ipAddress: string | null; userAgent: string | null };
@@ -24,7 +26,11 @@ interface CreateInvestmentRecordParams {
   incentiveAmount: number;
   sharePrice: number;
   incentivePerShare: number;
-  amount: number;
+  discountPerShare: number;
+  paymentPlan: PaymentPlanValue;
+  slipFileKey: string | null;
+  amount: number; // the initial ledger amount: FULL total or kisti 1
+  totalAmount: number; // the plan's full face value: shares × sharePrice
   depositMethod: DepositMethod;
   depositRef: string | null;
   depositDate: Date;
@@ -59,6 +65,10 @@ export async function createInvestmentRecord(
   const { uidSequence, uid } = await nextInvestmentUid(tx);
   const code = generateVerificationCode();
 
+  // FULL plans are paid in one shot, so fullyPaidAt is set immediately.
+  // INSTALLMENT plans complete when the last kisti's payment is approved.
+  const fullyPaidAt = params.paymentPlan === 'FULL' ? new Date() : null;
+
   const investment = await tx.investment.create({
     data: {
       investorId: params.investorId,
@@ -71,7 +81,11 @@ export async function createInvestmentRecord(
       incentiveAmount: params.incentiveAmount,
       sharePrice: params.sharePrice,
       incentivePerShare: params.incentivePerShare,
+      discountPerShare: params.discountPerShare,
       amount: params.amount,
+      paymentPlan: params.paymentPlan,
+      slipFileKey: params.slipFileKey,
+      fullyPaidAt,
       depositMethod: params.depositMethod,
       depositRef: params.depositRef,
       depositDate: params.depositDate,
@@ -87,9 +101,47 @@ export async function createInvestmentRecord(
       amount: params.amount,
       type: TransactionType.DEPOSIT,
       recordedByStaffId: params.recordedByStaffId,
-      note: 'Initial deposit',
+      note: params.paymentPlan === 'FULL' ? 'Initial deposit (full payment)' : 'Initial deposit (kisti 1)',
     },
   });
+
+  if (params.paymentPlan === 'INSTALLMENT') {
+    if (INSTALLMENT_DEADLINES.length !== 4) {
+      throw new RangeError('INSTALLMENT_DEADLINES must have 4 entries');
+    }
+    // Kisti 1 is paid at registration; kistis 2–4 get SCHEDULED rows with the fixed deadlines.
+    await tx.installmentSchedule.create({
+      data: {
+        investmentId: investment.id,
+        installmentNo: 1,
+        dueDate: new Date(INSTALLMENT_DEADLINES[0]),
+        amount: params.amount,
+        status: InstallmentStatus.PAID,
+        note: 'Paid at registration',
+      },
+    });
+    const remainingPerKisti = Math.round((params.totalAmount - params.amount) / 3);
+    for (let kisti = 2; kisti <= 4; kisti += 1) {
+      await tx.installmentSchedule.create({
+        data: {
+          investmentId: investment.id,
+          installmentNo: kisti,
+          dueDate: new Date(INSTALLMENT_DEADLINES[kisti - 1]),
+          amount: kisti === 4
+            ? params.totalAmount - params.amount - remainingPerKisti * 2 // remainder lands on the last kisti
+            : remainingPerKisti,
+          status: InstallmentStatus.SCHEDULED,
+        },
+      });
+    }
+  }
+
+  // A certificate exists only for fully-paid investments (FULL plans at creation).
+  if (fullyPaidAt) {
+    await tx.certificate.create({
+      data: { investmentId: investment.id },
+    });
+  }
 
   const ledgerRows = await tx.transaction.findMany({
     where: {
@@ -145,7 +197,12 @@ export async function registerInvestment(
           incentiveAmount,
           sharePrice,
           incentivePerShare,
+          // Walk-in desk registration: staff collected the full amount in hand.
+          discountPerShare: 0,
+          paymentPlan: 'FULL',
+          slipFileKey: null,
           amount: amountSnapshot,
+          totalAmount: amountSnapshot,
           depositMethod: input.depositMethod,
           depositRef: input.depositRef ?? null,
           depositDate: input.depositDate,

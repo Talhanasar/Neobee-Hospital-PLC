@@ -1,6 +1,6 @@
 import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
-import { amountInWords, formatBdt } from '@/lib/money';
+import { amountInWords, formatBdt, type InvestmentCategory } from '@/lib/money';
 
 export interface ReceiptData {
   uid: string;
@@ -8,7 +8,7 @@ export interface ReceiptData {
   investorName: string;
   investorPhone: string;
   nationalIdNumber: string | null;
-  category: 'SHAREHOLDER' | 'PREMIUM' | 'DIRECTOR';
+  category: InvestmentCategory;
   shares: number;
   sharePrice: number;
   amount: number;
@@ -19,6 +19,12 @@ export interface ReceiptData {
   depositDate: Date;
   status: 'PENDING' | 'CONFIRMED';
   issuedAt: Date;
+  // Payment-plan context (kisti receipts). Omitted on legacy receipts.
+  paymentPlan?: 'FULL' | 'INSTALLMENT';
+  installmentNo?: number; // 1–4 when this receipt is for one kisti
+  kistiRef?: string; // e.g. NEO-0012-K2
+  totalAmount?: number; // plan face value (shares × sharePrice, undiscounted)
+  paidToDate?: number; // cumulative paid including this payment
 }
 
 function assertPositiveInteger(value: number, name: string): void {
@@ -53,6 +59,7 @@ function categoryLabel(category: ReceiptData['category']): string {
     case 'SHAREHOLDER': return 'Shareholder';
     case 'PREMIUM': return 'Premium Shareholder';
     case 'DIRECTOR': return 'Director Shareholder';
+    case 'GOLDEN_DIRECTOR': return 'Golden Director Shareholder';
   }
 }
 
@@ -122,6 +129,18 @@ export async function generateReceiptPdf(data: ReceiptData): Promise<Buffer> {
     y = addRow(doc, 'Deposit date', formatDateISO(data.depositDate), y);
     y = addRow(doc, 'Verification code', data.code, y);
     y = addRow(doc, 'Status', data.status === 'PENDING' ? 'Pending' : 'Confirmed', y);
+
+    // Kisti context: which installment this receipt covers and the running total.
+    if (data.paymentPlan === 'INSTALLMENT') {
+      if (data.kistiRef && data.installmentNo) {
+        y = addRow(doc, 'Installment', `${data.kistiRef} (kisti ${data.installmentNo} of 4)`, y);
+      }
+      if (data.totalAmount !== undefined && data.paidToDate !== undefined) {
+        y = addRow(doc, 'Plan total', formatBdt(data.totalAmount), y);
+        y = addRow(doc, 'Paid to date', formatBdt(data.paidToDate), y);
+      }
+    }
+
     y = addRow(doc, 'Amount received', formatBdt(data.amount), y);
     addRow(doc, 'Amount in words', amountInWords(data.amount), y);
 

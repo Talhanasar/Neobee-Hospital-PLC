@@ -43,22 +43,28 @@ function makeClient(rows: SettingRow[], calls?: UpsertCall[]): FakeClient {
 const allRows: SettingRow[] = [
   { key: 'SHARE_PRICE', value: BigInt(1) },
   { key: 'INCENTIVE_PER_SHARE', value: BigInt(2) },
-  { key: 'TARGET_AMOUNT', value: BigInt(3000000000) },
+  { key: 'TARGET_AMOUNT', value: BigInt(1800000000) },
   { key: 'TARGET_SHARES', value: BigInt(4) },
   { key: 'FOUNDING_AMOUNT', value: BigInt(5) },
   { key: 'TARGET_ENTREPRENEURS', value: BigInt(6) },
+  { key: 'FULL_PAYMENT_DISCOUNT_PER_SHARE', value: BigInt(7) },
+  { key: 'INSTALLMENT_UNIT_AMOUNT', value: BigInt(8) },
+  { key: 'INSTALLMENT_COUNT', value: BigInt(9) },
 ];
 
 describe('settings', () => {
-  it('returns all six keys when the db has all six', async () => {
+  it('returns all keys when the db has all of them', async () => {
     const settings = await getSettings(makeClient(allRows));
     expect(settings).toEqual({
       SHARE_PRICE: 1,
       INCENTIVE_PER_SHARE: 2,
-      TARGET_AMOUNT: 3000000000,
+      TARGET_AMOUNT: 1800000000,
       TARGET_SHARES: 4,
       FOUNDING_AMOUNT: 5,
       TARGET_ENTREPRENEURS: 6,
+      FULL_PAYMENT_DISCOUNT_PER_SHARE: 7,
+      INSTALLMENT_UNIT_AMOUNT: 8,
+      INSTALLMENT_COUNT: 9,
     } satisfies Settings);
   });
 
@@ -74,7 +80,7 @@ describe('settings', () => {
 
   it('ignores unknown db keys', async () => {
     const settings = await getSettings(makeClient([...allRows, { key: 'UNKNOWN_KEY', value: BigInt(99) }]));
-    expect(Object.keys(settings)).toHaveLength(6);
+    expect(Object.keys(settings)).toHaveLength(9);
     expect((settings as Record<string, number>).UNKNOWN_KEY).toBeUndefined();
   });
 
