@@ -1,0 +1,1 @@
+ALTER TABLE "Investor" ADD COLUMN "tin" TEXT;

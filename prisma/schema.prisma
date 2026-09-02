@@ -11,6 +11,12 @@ enum InvestmentCategory {
   SHAREHOLDER
   PREMIUM
   DIRECTOR
+  GOLDEN_DIRECTOR
+}
+
+enum PaymentPlan {
+  FULL
+  INSTALLMENT
 }
 
 enum InvestmentStatus {
@@ -97,6 +103,8 @@ model Investor {
   email             String?
   nationalIdNumber  String?
   nationalIdFileKey String? // signed URLs are minted on demand and never persisted.
+  tin               String? // tax identification number (TIN), shown on receipts/certificates.
+  address           String?
   approvalStatus    ApprovalStatus @default(PENDING) // portal access gate: self-registrations wait for staff approval; linking a staff-known record auto-approves.
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -118,7 +126,11 @@ model Investment {
   incentiveAmount       Int                @default(0)
   sharePrice            Int // the share price is admin-editable at runtime, so each investment records the price in effect at registration; historical amounts are computed from these snapshots, never from the live setting, because recomputing against today's price would silently rewrite financial history.
   incentivePerShare     Int // the share price is admin-editable at runtime, so each investment records the price in effect at registration; historical amounts are computed from these snapshots, never from the live setting, because recomputing against today's price would silently rewrite financial history.
+  discountPerShare      Int @default(0) // FULL-plan snapshot of the one-time-payment discount in effect at registration; 0 for INSTALLMENT plans.
   amount                Int // not the source of truth once transactions exist; recomputed in the same DB transaction that writes a ledger row; DISTRIBUTION rows are excluded because a profit payout does not reduce principal.
+  paymentPlan           PaymentPlan @default(FULL) // FULL = one-time payment (discounted); INSTALLMENT = 4 kistis, currently only allowed for exactly 1 share.
+  slipFileKey           String? // deposit slip image uploaded by the investor at request time; signed URLs are minted on demand and never persisted.
+  fullyPaidAt           DateTime? // set when the total paid equals the plan's total (FULL: immediately on approval; INSTALLMENT: after the last kisti clears).
   depositMethod         DepositMethod
   depositRef            String?
   depositDate           DateTime
@@ -134,6 +146,7 @@ model Investment {
 
   transactions          Transaction[]
   installmentSchedules  InstallmentSchedule[]
+  certificate           Certificate?
   request               InvestmentRequest?
   paymentRequests       InvestmentRequest[]   @relation("PaymentRequestTarget")
 
@@ -155,12 +168,15 @@ model InvestmentRequest {
   targetInvestment  Investment?              @relation("PaymentRequestTarget", fields: [targetInvestmentId], references: [id], onDelete: Restrict)
   shares            Int
   entrepreneurRequested Boolean             @default(false)
+  paymentPlan       PaymentPlan? // SHARE_PURCHASE only: FULL or INSTALLMENT; null for PAYMENT requests.
+  installmentNo     Int? // PAYMENT only: which kisti (1–4) this payment targets; null for SHARE_PURCHASE or FULL plans.
   sharePrice        Int                      // snapshot at submission
   incentivePerShare Int                      // snapshot at submission
   amount            Int                      // snapshot: shares * sharePrice (SHARE_PURCHASE) or the paid amount (PAYMENT)
   depositMethod     DepositMethod
   depositRef        String?
   depositDate       DateTime
+  slipFileKey       String? // deposit slip image; signed URLs are minted on demand and never persisted.
   note              String?                  @db.Text
   status            InvestmentRequestStatus  @default(SUBMITTED)
   reviewedByStaffId String?
@@ -202,20 +218,32 @@ model Transaction {
 }
 
 model InstallmentSchedule {
-  id           String            @id @default(uuid())
-  investmentId String
-  investment   Investment        @relation(fields: [investmentId], references: [id], onDelete: Restrict)
-  dueDate      DateTime
-  amount       Int
-  status       InstallmentStatus @default(SCHEDULED)
-  note         String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id            String            @id @default(uuid())
+  investmentId  String
+  investment    Investment        @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+  installmentNo Int               @default(1) // kisti 1–4; displayed ID is derived as `<uid>-K<installmentNo>`.
+  dueDate       DateTime
+  amount        Int
+  status        InstallmentStatus @default(SCHEDULED)
+  note          String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   transactions Transaction[]
 
   @@index([investmentId])
   @@index([status, dueDate])
+  @@unique([investmentId, installmentNo])
+}
+
+model Certificate {
+  id           String      @id @default(uuid())
+  investmentId String      @unique // one certificate per investment, created only when the plan is fully paid.
+  investment   Investment  @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+  issuedAt     DateTime    @default(now())
+  createdAt    DateTime    @default(now())
+
+  // Display certificate number is derived from the investment's uid as `<uid>-CERT`; no stored counter to drift.
 }
 
 model Lead {
