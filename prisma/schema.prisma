@@ -293,3 +293,63 @@ model Setting {
 
   // These are the admin-editable runtime values; DEFAULT_SETTINGS in lib/money.ts supplies seed defaults only.
 }
+
+// ──────────────────────────────────────────────────────────────────────
+// Self-hosted auth (AUTH_PROVIDER=own)
+// Owns accounts locally instead of Supabase Auth. Supabase stays the default
+// provider; these tables are only used when AUTH_PROVIDER=own.
+// ──────────────────────────────────────────────────────────────────────
+// citext extension is NOT enabled anywhere in the migration history (no
+// `CREATE EXTENSION "citext"` in 0_init), so email uses @db.Text + @unique
+// and is always stored/lookup-ed lowercased. Uniqueness is case-sensitively
+// enforced on the lowercased form.
+model AuthUser {
+  id              String      @id @default(uuid())
+  email           String      @unique @db.Text // stored lowercased; lookups match lower(email)
+  passwordHash    String // scrypt: N=2^17,r=8,p=1,keylen=64 — format "<saltB64>:<hashB64>"
+  role            OwnAuthRole @default(INVESTOR)
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sessions AuthSession[]
+}
+
+model AuthSession {
+  id         String     @id @default(uuid())
+  tokenHash  String     @unique // sha256 of the opaque cookie token — the raw token never lives in the DB
+  userId     String
+  user       AuthUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime   @default(now())
+  userAgent  String?
+  ip         String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailOtp {
+  id          String    @id @default(uuid())
+  email       String // lowercased
+  codeHash    String // sha256(code) — 6-digit codes are low-entropy; hashing at rest prevents DB-read replay
+  purpose     OtpPurpose
+  expiresAt   DateTime // 10 minutes
+  attempts    Int       @default(0) // max 5 verify attempts, then invalidated
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([email, purpose])
+}
+
+enum OwnAuthRole {
+  INVESTOR
+  STAFF
+  ADMIN
+}
+
+enum OtpPurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
