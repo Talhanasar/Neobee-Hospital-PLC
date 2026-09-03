@@ -33,9 +33,11 @@ export default async function ReceiptPage({ params, searchParams }: Props) {
         </div>
       ) : null}
       <Receipt data={data} qrDataUrl={qrDataUrl} />
-      <div className="mt-4">
-        <PrintButton />
-      </div>
+      {embed !== '1' ? (
+        <div className="mt-4">
+          <PrintButton />
+        </div>
+      ) : null}
     </div>
   );
 }
