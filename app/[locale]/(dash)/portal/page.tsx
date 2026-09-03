@@ -11,6 +11,7 @@ import { buttonClasses } from '@/components/ui/Button';
 import { getTranslations } from 'next-intl/server';
 import { kistiRef } from '@/lib/money';
 import { KistiStatusBadge } from '@/components/ui/KistiStatusBadge';
+import { DocumentModal } from '@/components/receipt/DocumentModal';
 
 export default async function PortalPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -97,7 +98,7 @@ export default async function PortalPage({ params }: { params: Promise<{ locale:
                     {row.status === 'REJECTED' ? <span className="text-xs text-[#B3261E]">{t('requestRejected')}</span> : row.status === 'SUBMITTED' ? <span className="text-xs text-ink-soft">{t('requestAwaiting')}</span> : null}
                   </div>
                   {row.status === 'APPROVED' && row.investmentId ? (
-                    <Link href={`/portal/receipts/${row.investmentId}`}>{t('viewReceipt')}</Link>
+                    <DocumentModal title={`${t('receiptModalTitle')} · ${row.targetInvestmentUid ?? row.investmentId}`} iframeSrc={`/${locale}/receipts/${row.investmentId}`} downloadHref={`/api/investments/${row.investmentId}/receipt`} downloadLabel={t('receiptDownload')} triggerLabel={t('viewReceipt')} />
                   ) : null}
                 </CardHead>
                 <div className="grid gap-3 p-5 md:grid-cols-2">
@@ -135,7 +136,7 @@ export default async function PortalPage({ params }: { params: Promise<{ locale:
                       ) : null}
                       <StatusBadge status={row.status} />
                     </div>
-                    <Link href={`/portal/receipts/${row.id}`}>{t('viewReceipt')}</Link>
+                    <DocumentModal title={`${t('receiptModalTitle')} · ${row.uid}`} iframeSrc={`/${locale}/receipts/${row.id}`} downloadHref={`/api/investments/${row.id}/receipt`} downloadLabel={t('receiptDownload')} triggerLabel={t('viewReceipt')} />
                   </CardHead>
                   <div className="grid gap-3 p-5 md:grid-cols-2">
                     <div><div className="text-sm text-ink-soft">{t('code')}</div><div className="num">{row.code}</div></div>

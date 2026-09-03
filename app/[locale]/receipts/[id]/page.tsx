@@ -21,7 +21,7 @@ export default async function ReceiptPage({ params, searchParams }: Props) {
   try { investor = await requireInvestor(); } catch (error) { if (error instanceof AuthError) redirect({ href: '/login', locale }); throw error; }
   try { await assertOwnsInvestment(investor.id, id); } catch (error) { if (error instanceof AuthError) notFound(); throw error; }
   const data = await getReceiptData(id, { installmentNo }); if (!data) notFound();
-  const qrDataUrl = await renderQrDataUrl(verificationQrPayload({ code: data.code, uid: data.uid, shares: data.shares, amount: data.amount }));
+  const qrDataUrl = await renderQrDataUrl(verificationQrPayload({ code: data.code }));
   const t = await getTranslations('portal');
   return (
     <div className="min-h-dvh bg-paper p-4 sm:p-8 print:min-h-0 print:p-0">

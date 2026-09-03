@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
-import { Link, redirect } from '@/i18n/navigation';
+import { redirect } from '@/i18n/navigation';
+import { DocumentModal } from '@/components/receipt/DocumentModal';
 import { requireInvestor, getSessionContext, AuthError } from '@/lib/auth';
 import { listInvestmentsForInvestor, listSchedulesForInvestor } from '@/lib/queries';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
@@ -85,9 +86,7 @@ export default async function ReceiptsPage({ params }: Props) {
                         >
                           {t('receiptDownload')}
                         </a>
-                        <Link href={`/portal/receipts/${row.id}`} className="inline-flex h-8 items-center rounded-lg border border-line bg-panel px-3 text-[13px] font-semibold text-ink hover:border-honey">
-                          {t('viewReceipt')}
-                        </Link>
+                        <DocumentModal title={`${t('receiptModalTitle')} · ${row.uid}`} iframeSrc={`/${locale}/receipts/${row.id}`} downloadHref={`/api/investments/${row.id}/receipt`} downloadLabel={t('receiptDownload')} triggerLabel={t('viewReceipt')} />
                       </div>
                     </td>
                   </tr>

@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
-import { Link, redirect } from '@/i18n/navigation';
+import { redirect } from '@/i18n/navigation';
+import { DocumentModal } from '@/components/receipt/DocumentModal';
 import { requireInvestor, getSessionContext } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { isDemoData, demoListCertificatesForInvestor } from '@/data/demo/store';
@@ -25,6 +26,7 @@ export default async function CertificatesPage({ params }: { params: Promise<{ l
   const session = await getSessionContext();
   if (!session.user) redirect({ href: '/login', locale });
   const t = await getTranslations({ locale, namespace: 'portal' });
+  const certT = await getTranslations({ locale: 'en', namespace: 'certificate' });
   if (!session.isInvestor) redirect({ href: '/register', locale });
 
   const investor = await requireInvestor();
@@ -77,9 +79,7 @@ export default async function CertificatesPage({ params }: { params: Promise<{ l
                     <span className="num">{row.uid}</span>
                     <CategoryBadge category={row.category} />
                   </div>
-                  <Link href={`/portal/certificates/${row.id}`} className="text-sm font-semibold text-honey-deep underline underline-offset-4">
-                    {t('viewCertificate')}
-                  </Link>
+                  <DocumentModal title={`${t('certificateModalTitle')} · ${row.uid}`} iframeSrc={`/${locale}/portal/certificates/${row.id}`} downloadHref={`/api/investments/${row.id}/certificate`} downloadLabel={certT('downloadPdf')} triggerLabel={t('viewCertificate')} triggerClassName="text-sm font-semibold text-honey-deep underline underline-offset-4" />
                 </CardHead>
                 <div className="grid gap-3 p-5 md:grid-cols-2">
                   <div><div className="text-sm text-ink-soft">{t('certNo')}</div><div className="num">{certRef(row.uid)}</div></div>

@@ -10,8 +10,9 @@ import Certificate from '@/components/receipt/Certificate';
 import { PrintButton } from '@/components/receipt/PrintButton';
 import { getTranslations } from 'next-intl/server';
 
-export default async function CertificatePage({ params }: { params: Promise<{ locale: string; id: string }> }) {
+export default async function CertificatePage({ params, searchParams }: { params: Promise<{ locale: string; id: string }>; searchParams: Promise<{ embed?: string }> }) {
   const { locale, id } = await params;
+  const { embed } = await searchParams;
   let investor;
   try { investor = await requireInvestor(); } catch (error) { if (error instanceof AuthError) redirect({ href: '/login', locale }); throw error; }
   try { await assertOwnsInvestment(investor.id, id); } catch (error) { if (error instanceof AuthError) notFound(); throw error; }
@@ -46,23 +47,25 @@ export default async function CertificatePage({ params }: { params: Promise<{ lo
       ? (row as { issuedAt: Date }).issuedAt
       : ((row as { certificate?: { issuedAt: Date } | null }).certificate?.issuedAt ?? (row as { fullyPaidAt: Date }).fullyPaidAt),
   };
-  const qrDataUrl = await renderQrDataUrl(verificationQrPayload({ code: data.code, uid: data.uid, shares: data.shares, amount: data.amount }));
+  const qrDataUrl = await renderQrDataUrl(verificationQrPayload({ code: data.code }));
   const t = await getTranslations('portal');
   const certT = await getTranslations({ locale: 'en', namespace: 'certificate' });
   return (
     <div className="space-y-4">
-      <div className="no-print flex gap-3">
-        <Link href="/portal/certificates">{t('back')}</Link>
-        <PrintButton />
-        {/* Direct PDF download — the print layout stays for on-paper use. */}
-        <a
-          href={`/api/investments/${id}/certificate`}
-          className="inline-flex h-9 items-center rounded-lg bg-honey px-3.5 text-sm font-semibold text-white hover:bg-honey-deep"
-          download
-        >
-          {certT('downloadPdf')}
-        </a>
-      </div>
+      {embed !== '1' ? (
+        <div className="no-print flex gap-3">
+          <Link href="/portal/certificates">{t('back')}</Link>
+          <PrintButton />
+          {/* Direct PDF download — the print layout stays for on-paper use. */}
+          <a
+            href={`/api/investments/${id}/certificate`}
+            className="inline-flex h-9 items-center rounded-lg bg-honey px-3.5 text-sm font-semibold text-white hover:bg-honey-deep"
+            download
+          >
+            {certT('downloadPdf')}
+          </a>
+        </div>
+      ) : null}
       <Certificate data={data} qrDataUrl={qrDataUrl} />
     </div>
   );

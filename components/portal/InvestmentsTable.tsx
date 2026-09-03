@@ -2,14 +2,14 @@
 
 import * as React from 'react';
 import { useActionState } from 'react';
-import { useTranslations } from 'next-intl';
-import { Link } from '@/i18n/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { Money } from '@/components/ui/Money';
 import { Num } from '@/components/ui/Num';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { KistiStatusBadge } from '@/components/ui/KistiStatusBadge';
 import { KistiReceiptModal } from '@/components/portal/KistiReceiptModal';
+import { DocumentModal } from '@/components/receipt/DocumentModal';
 import {
   submitInvestmentRequestAction,
   type SubmitInvestmentRequestState,
@@ -129,6 +129,7 @@ function ClaimKistiForm({ row, kisti, onDone }: { row: InvestmentsTableRow; kist
 export default function InvestmentsTable({ rows }: { rows: InvestmentsTableRow[] }) {
   const t = useTranslations('portal');
   const tInvest = useTranslations('invest');
+  const locale = useLocale();
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [claimId, setClaimId] = React.useState<string | null>(null); // `${investmentId}:${installmentNo}`
 
@@ -185,9 +186,7 @@ export default function InvestmentsTable({ rows }: { rows: InvestmentsTableRow[]
                   <td className={`${rowBorder} whitespace-nowrap text-right`}>
                     <div className="inline-flex gap-2">
                       {row.paymentPlan !== 'INSTALLMENT' ? (
-                        <Link href={`/portal/receipts/${row.id}`} className="inline-flex h-8 items-center rounded-lg border border-line bg-panel px-3 text-[13px] font-semibold text-ink hover:border-honey">
-                          {t('viewReceipt')}
-                        </Link>
+                        <DocumentModal title={`${t('receiptModalTitle')} · ${row.uid}`} iframeSrc={`/${locale}/receipts/${row.id}`} downloadHref={`/api/investments/${row.id}/receipt`} downloadLabel={t('receiptDownload')} triggerLabel={t('viewReceipt')} />
                       ) : null}
                       {row.kistis.length > 0 ? (
                         <button

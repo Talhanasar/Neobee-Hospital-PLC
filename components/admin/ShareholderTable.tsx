@@ -1,7 +1,8 @@
 import { Link } from '@/i18n/navigation';
 import * as React from 'react';
-import { getTranslations } from 'next-intl/server';
+import { getTranslations, getLocale } from 'next-intl/server';
 import { Button, buttonClasses } from '@/components/ui/Button';
+import { DocumentModal } from '@/components/receipt/DocumentModal';
 import { Card, CardHead } from '@/components/ui/Card';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { Money } from '@/components/ui/Money';
@@ -19,6 +20,8 @@ function hrefWithParams(base: string, params: URLSearchParams) {
 export async function ShareholderTable({ result, query }: { result: InvestmentListResult; query: ListInvestmentsInput }) {
   const t = await getTranslations('admin');
   const methodT = await getTranslations('methods');
+  const tPortal = await getTranslations('portal');
+  const locale = await getLocale();
   const hasFilters = Boolean(query.search || query.status || query.category);
   const from = result.total === 0 ? 0 : (result.page - 1) * result.pageSize + 1;
   const to = Math.min(result.total, result.page * result.pageSize);
@@ -109,7 +112,7 @@ export async function ShareholderTable({ result, query }: { result: InvestmentLi
                     <td className={`${rowBorder} text-right whitespace-nowrap`}>
                       {/* No delete action: the ledger is append-only and the old client-side destroy button must not return. */}
                       <div className="inline-flex gap-2">
-                        <Link className={buttonClasses('default', 'sm')} href={`/admin/receipts/${row.id}`}>{t('rowReceipt')}</Link>
+                        <DocumentModal title={`${tPortal('receiptModalTitle')} · ${row.uid}`} iframeSrc={`/${locale}/admin/receipts/${row.id}`} downloadHref={`/api/investments/${row.id}/receipt`} downloadLabel={tPortal('receiptDownload')} triggerLabel={t('rowReceipt')} triggerClassName={buttonClasses('default', 'sm')} />
                         <Link className={buttonClasses('default', 'sm')} href={`/admin/receipts/${row.id}?qr=1`}>{t('rowQr')}</Link>
                       </div>
                     </td>
