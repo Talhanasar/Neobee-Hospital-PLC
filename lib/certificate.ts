@@ -1,19 +1,27 @@
 import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
-import { amountInWords, formatBdt, certRef, type InvestmentCategory } from '@/lib/money';
+import { amountInWords, formatBdt, type InvestmentCategory } from '@/lib/money';
 
-export interface CertificateData {
+export interface CertificateHolding {
   uid: string;
-  code: string;
-  investorName: string;
-  category: InvestmentCategory;
   shares: number;
-  sharePrice: number;
   amount: number;
-  issuedAt: Date;
+  paidAt: Date;
 }
 
-function categoryLabel(category: InvestmentData['category']): string {
+export interface CertificateData {
+  certRef: string; // `${firstUid}-CERT`
+  code: string; // verification code of the most recent fully-paid holding
+  investorName: string;
+  category: InvestmentCategory;
+  shares: number; // total across holdings
+  sharePrice: number; // current setting, display only
+  amount: number; // total across holdings
+  issuedAt: Date; // earliest holding issue/paid date
+  holdings: CertificateHolding[]; // sorted oldest first by paidAt
+}
+
+function categoryLabel(category: InvestmentCategory): string {
   switch (category) {
     case 'SHAREHOLDER': return 'Shareholder';
     case 'PREMIUM': return 'Premium Shareholder';
@@ -22,10 +30,8 @@ function categoryLabel(category: InvestmentData['category']): string {
   }
 }
 
-type InvestmentData = CertificateData;
-
 export async function generateCertificatePdf(data: CertificateData): Promise<Buffer> {
-  const qrPayload = `NEOBEE HOSPITAL PLC | VERIFY | CODE:${data.code} | UID:${data.uid} | SHARES:${data.shares} | AMOUNT:${data.amount} BDT`;
+  const qrPayload = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/verify?code=${encodeURIComponent(data.code)}`;
   const qrBuffer = await QRCode.toBuffer(qrPayload, { type: 'png', margin: 1, scale: 6 });
 
   return await new Promise<Buffer>((resolve, reject) => {
@@ -53,20 +59,37 @@ export async function generateCertificatePdf(data: CertificateData): Promise<Buf
     center('NEOBEE HOSPITAL PLC', 92, { size: 20, bold: true });
     center('Certificate of Shareholding', 128, { size: 15, bold: true, color: '#0A4D6B' });
 
-    const body = `This is to certify that ${data.investorName} is registered in the books of Neobee Hospital PLC as a ${categoryLabel(data.category)}, holding ${data.shares} share(s) of Tk ${formatBdt(data.sharePrice)} each, fully paid-up, vide Unique ID ${data.uid}.`;
+    const body = `This is to certify that ${data.investorName} is registered in the books of Neobee Hospital PLC as a ${categoryLabel(data.category)}, holding a total of ${data.shares} fully paid-up share(s) of Tk ${formatBdt(data.sharePrice)} each, as itemised below.`;
     doc.font('Helvetica').fontSize(11).fillColor('#000').text(body, 90, 190, { width: 415, align: 'center', lineGap: 4 });
 
-    center(`${amountInWords(data.amount)} taka — total paid-up value`, 290, { size: 10, color: '#555' });
-    center(`Tk ${formatBdt(data.amount)}`, 312, { size: 18, bold: true });
+    // Holdings table.
+    const tableTop = 240;
+    const colX = [90, 250, 390, 500];
+    const headers = ['UNIQUE ID', 'SHARES', 'AMOUNT', 'PAID ON'];
+    doc.font('Helvetica-Bold').fontSize(8).fillColor('#555');
+    headers.forEach((h, i) => doc.text(h, colX[i], tableTop, { width: 105 }));
+    doc.font('Helvetica').fontSize(10.5).fillColor('#000');
+    data.holdings.forEach((h, i) => {
+      const y = tableTop + 16 + i * 14;
+      doc.text(h.uid, colX[0], y, { width: 105 });
+      doc.text(String(h.shares), colX[1], y, { width: 105 });
+      doc.text(`Tk ${formatBdt(h.amount)}`, colX[2], y, { width: 105 });
+      doc.text(h.paidAt.toISOString().slice(0, 10), colX[3], y, { width: 105 });
+    });
+    const tableBottom = tableTop + 16 + data.holdings.length * 14 + 6;
+
+    // Totals + paid-up value.
+    center(`${amountInWords(data.amount)} taka — total paid-up value`, tableBottom + 12, { size: 10, color: '#555' });
+    center(`Tk ${formatBdt(data.amount)}`, tableBottom + 28, { size: 18, bold: true });
 
     // Details grid.
-    const colX = [95, 265, 435];
+    const detailY = tableBottom + 52;
     const labels = ['CERTIFICATE NO.', 'DATE OF ISSUE', 'VERIFICATION CODE'];
-    const values = [certRef(data.uid), data.issuedAt.toISOString().slice(0, 10), data.code];
-    doc.save().moveTo(80, 360).lineTo(515, 360).lineWidth(0.75).strokeColor('#0B6E99').stroke().restore();
+    const values = [data.certRef, data.issuedAt.toISOString().slice(0, 10), data.code];
+    doc.save().moveTo(80, detailY - 6).lineTo(515, detailY - 6).lineWidth(0.75).strokeColor('#0B6E99').stroke().restore();
     labels.forEach((label, i) => {
-      doc.font('Helvetica-Bold').fontSize(8).fillColor('#555').text(label, colX[i], 375, { width: 120 });
-      doc.font('Helvetica').fontSize(10.5).fillColor('#000').text(values[i], colX[i], 388, { width: 120 });
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#555').text(label, colX[i], detailY, { width: 120 });
+      doc.font('Helvetica').fontSize(10.5).fillColor('#000').text(values[i], colX[i], detailY + 14, { width: 120 });
     });
 
     // QR (left) + Chairman signature (right).

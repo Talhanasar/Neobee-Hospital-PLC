@@ -876,7 +876,7 @@
     "categoryPremium": "Premium Shareholder",
     "categoryDirector": "Director Shareholder",
     "categoryGoldenDirector": "Golden Director Shareholder",
-    "body": "This is to certify that {name} is registered in the books of Neobee Hospital PLC as a {category}, holding {shares} share(s) of ৳{price} each, fully paid-up, vide Unique ID {uid}.",
+    "body": "This is to certify that {name} is registered in the books of Neobee Hospital PLC as a {category}, holding a total of {shares} fully paid-up share(s) of ৳{price} each, as itemised below.",
     "paidUpValue": "Total paid-up value",
     "certNo": "Certificate no.",
     "dateOfIssue": "Date of issue",
@@ -887,7 +887,14 @@
     "chairmanTitle": "Chairman, Neobee Hospital PLC",
     "ceoName": "Md. Kaisar Chowdhury",
     "ceoTitle": "CEO, Neobee Hospital PLC",
-    "downloadPdf": "Download PDF"
+    "downloadPdf": "Download PDF",
+    "colUid": "Unique ID",
+    "colShares": "Shares",
+    "colAmount": "Amount",
+    "colPaidOn": "Paid on",
+    "holdingsTitle": "Fully paid-up holdings",
+    "totalShares": "Total shares",
+    "totalAmount": "Total paid-up value"
   },
   "auth": {
     "backToHome": "Back to home",

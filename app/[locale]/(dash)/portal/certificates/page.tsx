@@ -6,7 +6,6 @@ import { requireInvestor, getSessionContext } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { isDemoData, demoListCertificatesForInvestor } from '@/data/demo/store';
 import { Card, CardHead } from '@/components/ui/Card';
-import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { getTranslations } from 'next-intl/server';
 import { certRef } from '@/lib/money';
 
@@ -55,6 +54,24 @@ export default async function CertificatesPage({ params }: { params: Promise<{ l
   const complete = rows.filter((row) => row.fullyPaidAt !== null);
   const incomplete = rows.filter((row) => row.fullyPaidAt === null);
 
+  // Cumulative certificate: aggregate every fully-paid holding into one card.
+  // The cert number is stable (first/earliest holding's uid) as holdings grow;
+  // half-paid kisti plans never appear here.
+  let aggregate: { certRef: string; issuedAt: Date; shares: number; amount: number } | null = null;
+  if (complete.length > 0) {
+    const sorted = [...complete].sort((a, b) => {
+      const da = a.certificate?.issuedAt ?? a.fullyPaidAt!;
+      const db = b.certificate?.issuedAt ?? b.fullyPaidAt!;
+      return da.getTime() - db.getTime();
+    });
+    aggregate = {
+      certRef: certRef(sorted[0].uid),
+      issuedAt: sorted[0].certificate?.issuedAt ?? sorted[0].fullyPaidAt!,
+      shares: complete.reduce((s, r) => s + r.shares, 0),
+      amount: complete.reduce((s, r) => s + r.amount, 0),
+    };
+  }
+
   return (
     <div className="space-y-6">
       <section className="space-y-2">
@@ -69,26 +86,29 @@ export default async function CertificatesPage({ params }: { params: Promise<{ l
         </div>
       ) : null}
 
-      {complete.length > 0 ? (
+      {aggregate ? (
         <section className="space-y-4">
-          <div className="space-y-4">
-            {complete.map((row) => (
-              <Card key={row.id}>
-                <CardHead className="justify-between">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="num">{row.uid}</span>
-                    <CategoryBadge category={row.category} />
-                  </div>
-                  <DocumentModal title={`${t('certificateModalTitle')} · ${row.uid}`} iframeSrc={`/${locale}/portal/certificates/${row.id}`} downloadHref={`/api/investments/${row.id}/certificate`} downloadLabel={certT('downloadPdf')} triggerLabel={t('viewCertificate')} triggerClassName="text-sm font-semibold text-honey-deep underline underline-offset-4" />
-                </CardHead>
-                <div className="grid gap-3 p-5 md:grid-cols-2">
-                  <div><div className="text-sm text-ink-soft">{t('certNo')}</div><div className="num">{certRef(row.uid)}</div></div>
-                  <div><div className="text-sm text-ink-soft">{t('certIssued')}</div><div className="num">{(row.certificate?.issuedAt ?? row.fullyPaidAt)!.toISOString().slice(0, 10)}</div></div>                  <div><div className="text-sm text-ink-soft">{t('shares')}</div><div className="num">{row.shares}</div></div>
-                  <div><div className="text-sm text-ink-soft">{t('amountPaid')}</div><div className="num">৳{row.amount.toLocaleString('en-IN')}</div></div>
-                </div>
-              </Card>
-            ))}
-          </div>
+          <Card>
+            <CardHead className="justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="num">{aggregate.certRef}</span>
+              </div>
+              <DocumentModal
+                title={t('certificateModalTitle')}
+                iframeSrc={`/${locale}/certificates/${investor.id}`}
+                downloadHref={`/api/investors/${investor.id}/certificate`}
+                downloadLabel={certT('downloadPdf')}
+                triggerLabel={t('viewCertificate')}
+                triggerClassName="text-sm font-semibold text-honey-deep underline underline-offset-4"
+              />
+            </CardHead>
+            <div className="grid gap-3 p-5 md:grid-cols-2">
+              <div><div className="text-sm text-ink-soft">{t('certNo')}</div><div className="num">{aggregate.certRef}</div></div>
+              <div><div className="text-sm text-ink-soft">{t('certIssued')}</div><div className="num">{aggregate.issuedAt.toISOString().slice(0, 10)}</div></div>
+              <div><div className="text-sm text-ink-soft">{t('shares')}</div><div className="num">{aggregate.shares}</div></div>
+              <div><div className="text-sm text-ink-soft">{t('amountPaid')}</div><div className="num">৳{aggregate.amount.toLocaleString('en-IN')}</div></div>
+            </div>
+          </Card>
         </section>
       ) : null}
 

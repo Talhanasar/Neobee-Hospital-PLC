@@ -1,16 +1,24 @@
 import { getTranslations } from 'next-intl/server';
 import { Money } from '@/components/ui/Money';
-import { certRef, amountInWords } from '@/lib/money';
+import { amountInWords } from '@/lib/money';
+
+export interface CertificateHolding {
+  uid: string;
+  shares: number;
+  amount: number;
+  paidAt: Date;
+}
 
 export interface CertificateData {
-  uid: string;
-  code: string;
+  certRef: string; // `${firstUid}-CERT`
+  code: string; // verification code of the most recent fully-paid holding
   investorName: string;
   category: 'SHAREHOLDER' | 'PREMIUM' | 'DIRECTOR' | 'GOLDEN_DIRECTOR';
-  shares: number;
-  sharePrice: number;
-  amount: number;
-  issuedAt: Date;
+  shares: number; // total across holdings
+  sharePrice: number; // current setting, display only
+  amount: number; // total across holdings
+  issuedAt: Date; // earliest holding issue/paid date
+  holdings: CertificateHolding[]; // sorted oldest first by paidAt
 }
 
 // Bank-facing document: English-only so the certificate and the PDF stay consistent.
@@ -50,9 +58,41 @@ export default async function Certificate({ data, qrDataUrl }: { data: Certifica
               category: categoryT[data.category],
               shares: data.shares.toLocaleString('en-IN'),
               price: data.sharePrice.toLocaleString('en-IN'),
-              uid: data.uid,
             })}
           </p>
+
+          <div className="mx-auto w-full max-w-md overflow-x-auto">
+            <table className="w-full border-collapse text-center">
+              <caption className="sr-only">{t('holdingsTitle')}</caption>
+              <thead>
+                <tr>
+                  <th className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-soft border-b border-[#0B6E99]/50 pb-1.5">{t('colUid')}</th>
+                  <th className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-soft border-b border-[#0B6E99]/50 pb-1.5">{t('colShares')}</th>
+                  <th className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-soft border-b border-[#0B6E99]/50 pb-1.5">{t('colAmount')}</th>
+                  <th className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-soft border-b border-[#0B6E99]/50 pb-1.5">{t('colPaidOn')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.holdings.map((h) => (
+                  <tr key={h.uid}>
+                    <td className="num py-1 text-left">{h.uid}</td>
+                    <td className="num py-1">{h.shares}</td>
+                    <td className="py-1"><Money value={h.amount} /></td>
+                    <td className="num py-1">{h.paidAt.toISOString().slice(0, 10)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-[#0B6E99]/50">
+                  <td colSpan={4} className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-soft pt-2 text-center">
+                    {t('totalShares')}: <span className="num font-semibold">{data.shares}</span>
+                    {' · '}
+                    {t('totalAmount')}: <span className="num font-semibold"><Money value={data.amount} /></span>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
 
           <p className="text-sm italic text-ink-soft">
             {t('paidUpValue')} — {amountInWords(data.amount)} taka
@@ -62,7 +102,7 @@ export default async function Certificate({ data, qrDataUrl }: { data: Certifica
           <div className="mx-auto grid max-w-md grid-cols-3 gap-3 border-t border-[#0B6E99]/50 pt-5 text-left">
             <div>
               <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-soft">{t('certNo')}</p>
-              <p className="num mt-1 text-sm font-semibold">{certRef(data.uid)}</p>
+              <p className="num mt-1 text-sm font-semibold">{data.certRef}</p>
             </div>
             <div>
               <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-soft">{t('dateOfIssue')}</p>

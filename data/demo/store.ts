@@ -22,6 +22,7 @@ import {
   type DemoInvestmentRequest,
   type DemoLead,
 } from './dataset';
+import { certRef, deriveCategory, type InvestmentCategory } from '@/lib/money';
 
 export function isDemoData(): boolean {
   return process.env.DEMO_DATA === 'true';
@@ -316,6 +317,45 @@ export function demoGetCertificate(investmentId: string) {
     amount: i.amount,
     fullyPaidAt: i.fullyPaidAt,
     issuedAt: i.certificateIssuedAt ?? i.fullyPaidAt,
+  };
+}
+
+// Cumulative certificate per investor: aggregates every fully-paid holding.
+// Half-paid kisti holdings never appear. Returns null when the investor has
+// no fully-paid holdings.
+export function demoGetInvestorCertificate(investorId: string) {
+  const paid = investments.filter((i) => i.investorId === investorId && i.fullyPaidAt);
+  if (paid.length === 0) return null;
+
+  // Earliest fully-paid holding first (stable cert number + issuedAt).
+  paid.sort(
+    (a, b) =>
+      (a.certificateIssuedAt ?? a.fullyPaidAt)!.getTime() -
+      (b.certificateIssuedAt ?? b.fullyPaidAt)!.getTime(),
+  );
+
+  const holdings = paid.map((i) => ({
+    uid: i.uid,
+    shares: i.shares,
+    amount: i.amount,
+    paidAt: i.fullyPaidAt!,
+  }));
+
+  const totalShares = holdings.reduce((s, h) => s + h.shares, 0);
+  const totalAmount = holdings.reduce((s, h) => s + h.amount, 0);
+  const issuedAt = paid.reduce((min, i) => {
+    const d = i.certificateIssuedAt ?? i.fullyPaidAt!;
+    return d < min ? d : min;
+  }, (paid[0].certificateIssuedAt ?? paid[0].fullyPaidAt!)!);
+
+  return {
+    certRef: certRef(holdings[0].uid),
+    code: paid[paid.length - 1].code, // most recent fully-paid holding
+    category: deriveCategory(totalShares) as InvestmentCategory,
+    shares: totalShares,
+    amount: totalAmount,
+    issuedAt,
+    holdings,
   };
 }
 
