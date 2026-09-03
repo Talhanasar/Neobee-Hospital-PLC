@@ -1,7 +1,7 @@
 /**
  * THE demo dataset — static, in-repo, zero-database presentation data.
  * Ported from prisma/seed-demo.ts so the two tell the same story:
- * demo investor Rahim Uddin (40 confirmed + 20 pending shares), three
+ * demo investor Rahim Uddin (one full payment + one kisti share), three
  * walk-in shareholders, one pending payment report, three interest leads.
  *
  * Everything here is shaped exactly like the Prisma rows the real query
@@ -17,7 +17,7 @@ export const DEMO_SETTINGS = {
   FOUNDING_AMOUNT: 100000000,
   FOUNDING_SHARES: 50,
   TARGET_ENTREPRENEURS: 50,
-  FULL_PAYMENT_DISCOUNT_PER_SHARE: 10000,
+  FULL_PAYMENT_DISCOUNT_PER_SHARE: 0,
   INSTALLMENT_UNIT_AMOUNT: 50000,
   INSTALLMENT_COUNT: 4,
 } as const;
@@ -106,8 +106,8 @@ const INCENTIVE = DEMO_SETTINGS.INCENTIVE_PER_SHARE;
 
 export const DEMO_INVESTMENTS: DemoInvestment[] = [
   // Fully-paid investor story: Rahim's confirmed holdings carry certificates.
-  { id: 'demo-inv-9001', investorId: 'demo-investor-rahim', uid: 'NEO-9001', code: 'NB-DEMQRT', shares: 40, category: 'DIRECTOR', isEntrepreneur: false, incentiveAmount: 0, sharePrice: SHARE_PRICE, incentivePerShare: INCENTIVE, discountPerShare: 10000, amount: 7600000, paymentPlan: 'FULL', fullyPaidAt: new Date('2026-08-22T10:00:00Z'), certificateIssuedAt: new Date('2026-08-22T10:00:00Z'), depositMethod: 'BANK_TRANSFER', depositRef: 'TRX-DEMO-0001', depositDate: new Date('2026-08-20T10:00:00Z'), status: 'CONFIRMED', confirmedAt: new Date('2026-08-22T10:00:00Z'), notes: 'Paid in full at once (৳10,000 discount per share applied)', recordedByStaffId: 'demo-staff-admin', createdAt: new Date('2026-08-20T10:00:00Z'), updatedAt: new Date('2026-08-22T10:00:00Z') },
-  { id: 'demo-inv-9002', investorId: 'demo-investor-rahim', uid: 'NEO-9002', code: 'NB-DEMKMX', shares: 20, category: 'PREMIUM', isEntrepreneur: false, incentiveAmount: 0, sharePrice: SHARE_PRICE, incentivePerShare: INCENTIVE, discountPerShare: 10000, amount: 3800000, paymentPlan: 'FULL', fullyPaidAt: new Date('2026-08-26T10:00:00Z'), certificateIssuedAt: new Date('2026-08-26T10:00:00Z'), depositMethod: 'MOBILE_BANKING', depositRef: 'BKX-DEMO-2244', depositDate: new Date('2026-08-24T10:00:00Z'), status: 'CONFIRMED', confirmedAt: new Date('2026-08-26T10:00:00Z'), notes: 'Paid in full at once (৳10,000 discount per share applied)', recordedByStaffId: 'demo-staff-admin', createdAt: new Date('2026-08-24T10:00:00Z'), updatedAt: new Date('2026-08-26T10:00:00Z') },
+  { id: 'demo-inv-9001', investorId: 'demo-investor-rahim', uid: 'NEO-9001', code: 'NB-DEMQRT', shares: 1, category: 'SHAREHOLDER', isEntrepreneur: false, incentiveAmount: 0, sharePrice: SHARE_PRICE, incentivePerShare: INCENTIVE, discountPerShare: 10000, amount: 190000, paymentPlan: 'FULL', fullyPaidAt: new Date('2026-08-22T10:00:00Z'), certificateIssuedAt: new Date('2026-08-22T10:00:00Z'), depositMethod: 'BANK_TRANSFER', depositRef: 'TRX-DEMO-0001', depositDate: new Date('2026-08-20T10:00:00Z'), status: 'CONFIRMED', confirmedAt: new Date('2026-08-22T10:00:00Z'), notes: 'Paid in full at once — ৳1,90,000 settled against a ৳2,00,000 share', recordedByStaffId: 'demo-staff-admin', createdAt: new Date('2026-08-20T10:00:00Z'), updatedAt: new Date('2026-08-22T10:00:00Z') },
+  { id: 'demo-inv-9002', investorId: 'demo-investor-rahim', uid: 'NEO-9002', code: 'NB-DEMKMX', shares: 1, category: 'SHAREHOLDER', isEntrepreneur: false, incentiveAmount: 0, sharePrice: SHARE_PRICE, incentivePerShare: INCENTIVE, amount: 50000, paymentPlan: 'INSTALLMENT', fullyPaidAt: null, certificateIssuedAt: null, depositMethod: 'MOBILE_BANKING', depositRef: 'BKX-DEMO-2244', depositDate: new Date('2026-08-24T10:00:00Z'), status: 'CONFIRMED', confirmedAt: new Date('2026-08-26T10:00:00Z'), notes: 'Kisti plan: 4 × ৳50,000 — kisti 1 paid', recordedByStaffId: 'demo-staff-admin', createdAt: new Date('2026-08-24T10:00:00Z'), updatedAt: new Date('2026-08-26T10:00:00Z') },
   { id: 'demo-inv-9011', investorId: 'demo-investor-kamrul', uid: 'NEO-9011', code: 'NB-DEMXYZ', shares: 100, category: 'DIRECTOR', isEntrepreneur: true, incentiveAmount: 2000000, sharePrice: SHARE_PRICE, incentivePerShare: INCENTIVE, discountPerShare: 10000, amount: 19000000, paymentPlan: 'FULL', fullyPaidAt: new Date('2026-08-13T10:00:00Z'), certificateIssuedAt: new Date('2026-08-13T10:00:00Z'), depositMethod: 'BANK_DEPOSIT', depositRef: 'DEP-DEMO-3311', depositDate: new Date('2026-08-12T10:00:00Z'), status: 'CONFIRMED', confirmedAt: new Date('2026-08-13T10:00:00Z'), notes: 'Demo seeded shareholder', recordedByStaffId: 'demo-staff-admin', createdAt: new Date('2026-08-12T10:00:00Z'), updatedAt: new Date('2026-08-13T10:00:00Z') },
   { id: 'demo-inv-9012', investorId: 'demo-investor-nusrat', uid: 'NEO-9012', code: 'NB-DEMWZP', shares: 25, category: 'PREMIUM', isEntrepreneur: false, incentiveAmount: 0, sharePrice: SHARE_PRICE, incentivePerShare: INCENTIVE, discountPerShare: 10000, amount: 4750000, paymentPlan: 'FULL', fullyPaidAt: new Date('2026-08-15T10:00:00Z'), certificateIssuedAt: new Date('2026-08-15T10:00:00Z'), depositMethod: 'BANK_TRANSFER', depositRef: 'TRX-DEMO-4422', depositDate: new Date('2026-08-14T10:00:00Z'), status: 'CONFIRMED', confirmedAt: new Date('2026-08-15T10:00:00Z'), notes: 'Demo seeded shareholder', recordedByStaffId: 'demo-staff-admin', createdAt: new Date('2026-08-14T10:00:00Z'), updatedAt: new Date('2026-08-15T10:00:00Z') },
   { id: 'demo-inv-9013', investorId: 'demo-investor-shahana', uid: 'NEO-9013', code: 'NB-DEMPRN', shares: 5, category: 'SHAREHOLDER', isEntrepreneur: false, incentiveAmount: 0, sharePrice: SHARE_PRICE, incentivePerShare: INCENTIVE, amount: 1000000, paymentPlan: 'FULL', fullyPaidAt: null, certificateIssuedAt: null, depositMethod: 'CHEQUE', depositRef: 'CHQ-DEMO-5533', depositDate: new Date('2026-08-18T10:00:00Z'), status: 'PENDING', confirmedAt: null, notes: 'Demo seeded shareholder', recordedByStaffId: 'demo-staff-admin', createdAt: new Date('2026-08-18T10:00:00Z'), updatedAt: new Date('2026-08-18T10:00:00Z') },
@@ -122,6 +122,10 @@ export const DEMO_SCHEDULES: DemoSchedule[] = [
   { id: 'demo-sched-9014-2', investmentId: 'demo-inv-9014', installmentNo: 2, dueDate: new Date(`${KISTI_DEADLINES[1]}T00:00:00Z`), amount: KISTI_UNIT, status: 'SCHEDULED' },
   { id: 'demo-sched-9014-3', investmentId: 'demo-inv-9014', installmentNo: 3, dueDate: new Date(`${KISTI_DEADLINES[2]}T00:00:00Z`), amount: KISTI_UNIT, status: 'SCHEDULED' },
   { id: 'demo-sched-9014-4', investmentId: 'demo-inv-9014', installmentNo: 4, dueDate: new Date(`${KISTI_DEADLINES[3]}T00:00:00Z`), amount: KISTI_UNIT, status: 'SCHEDULED' },
+  { id: 'demo-sched-9002-1', investmentId: 'demo-inv-9002', installmentNo: 1, dueDate: new Date(`${KISTI_DEADLINES[0]}T00:00:00Z`), amount: KISTI_UNIT, status: 'PAID' },
+  { id: 'demo-sched-9002-2', investmentId: 'demo-inv-9002', installmentNo: 2, dueDate: new Date(`${KISTI_DEADLINES[1]}T00:00:00Z`), amount: KISTI_UNIT, status: 'SCHEDULED' },
+  { id: 'demo-sched-9002-3', investmentId: 'demo-inv-9002', installmentNo: 3, dueDate: new Date(`${KISTI_DEADLINES[2]}T00:00:00Z`), amount: KISTI_UNIT, status: 'SCHEDULED' },
+  { id: 'demo-sched-9002-4', investmentId: 'demo-inv-9002', installmentNo: 4, dueDate: new Date(`${KISTI_DEADLINES[3]}T00:00:00Z`), amount: KISTI_UNIT, status: 'SCHEDULED' },
 ];
 
 export type DemoTransaction = {
@@ -188,7 +192,7 @@ export type DemoInvestmentRequest = {
 };
 
 export const DEMO_REQUESTS: DemoInvestmentRequest[] = [
-  { id: 'demo-req-pay-1', investorId: 'demo-investor-rahim', kind: 'PAYMENT', targetInvestmentId: 'demo-inv-9001', shares: 0, entrepreneurRequested: false, sharePrice: SHARE_PRICE, incentivePerShare: INCENTIVE, amount: 500000, depositMethod: 'MOBILE_BANKING', depositRef: 'BKX-DEMO-7788', depositDate: new Date('2026-08-26T10:00:00Z'), note: 'Installment no. 2 paid via bKash — reference BKX-DEMO-7788', status: 'SUBMITTED', reviewedByStaffId: null, reviewedAt: null, reviewNote: null, investmentId: null, createdAt: new Date('2026-08-26T10:00:00Z'), updatedAt: new Date('2026-08-26T10:00:00Z') },
+  { id: 'demo-req-pay-1', investorId: 'demo-investor-rahim', kind: 'PAYMENT', targetInvestmentId: 'demo-inv-9002', installmentNo: 2, shares: 0, entrepreneurRequested: false, sharePrice: SHARE_PRICE, incentivePerShare: INCENTIVE, amount: KISTI_UNIT, depositMethod: 'MOBILE_BANKING', depositRef: 'BKX-DEMO-7788', depositDate: new Date('2026-08-26T10:00:00Z'), note: 'Kisti 2 of 4 paid via bKash — reference BKX-DEMO-7788', status: 'SUBMITTED', reviewedByStaffId: null, reviewedAt: null, reviewNote: null, investmentId: null, createdAt: new Date('2026-08-26T10:00:00Z'), updatedAt: new Date('2026-08-26T10:00:00Z') },
   // Sultana's kisti-2 payment report: in the queue so staff can approve it live.
   { id: 'demo-req-kisti-2', investorId: 'demo-investor-sultana', kind: 'PAYMENT', targetInvestmentId: 'demo-inv-9014', installmentNo: 2, shares: 0, entrepreneurRequested: false, sharePrice: SHARE_PRICE, incentivePerShare: INCENTIVE, amount: KISTI_UNIT, depositMethod: 'MOBILE_BANKING', depositRef: 'BKX-DEMO-9015', depositDate: new Date('2026-08-30T10:00:00Z'), note: 'Kisti 2 of 4 paid via bKash — reference BKX-DEMO-9015', status: 'SUBMITTED', reviewedByStaffId: null, reviewedAt: null, reviewNote: null, investmentId: null, createdAt: new Date('2026-08-30T10:00:00Z'), updatedAt: new Date('2026-08-30T10:00:00Z') },
 ];

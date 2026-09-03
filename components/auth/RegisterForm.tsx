@@ -14,7 +14,6 @@ import {
   canPayByInstallment,
   deriveCategory,
   formatBdt,
-  fullPaymentPerShare,
   installmentPerKisti,
   MAX_SHARES,
   MIN_SHARES,
@@ -24,7 +23,6 @@ import { CategoryBadge } from '@/components/ui/CategoryBadge';
 type Phase = 'details' | 'investment' | 'deposit' | 'otp' | 'success';
 
 const SHARE_PRICE = 200000; // display only; the server recomputes from live settings
-const DISCOUNT_PER_SHARE = 10000;
 const KISTI_UNIT = 50000;
 
 /**
@@ -69,10 +67,7 @@ export default function RegisterForm() {
   const phone = `+880${digits}`;
   const focusRing = 'focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2';
 
-  const perShare = paymentPlan === 'FULL' ? fullPaymentPerShare(SHARE_PRICE, DISCOUNT_PER_SHARE) : SHARE_PRICE;
-  const amountDue = paymentPlan === 'FULL'
-    ? perShare * shares
-    : installmentPerKisti(shares, KISTI_UNIT);
+  const amountDue = paymentPlan === 'FULL' ? SHARE_PRICE * shares : installmentPerKisti(shares, KISTI_UNIT);
   const kistiAllowed = canPayByInstallment(shares);
 
   const [signupState, signupAction, signupPending] = useActionState(investorSignupAction, {
@@ -315,7 +310,7 @@ export default function RegisterForm() {
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">
               {paymentPlan === 'FULL'
-                ? t('fullDiscountNote', { discount: formatBdt(DISCOUNT_PER_SHARE * shares) })
+                ? t('fullDiscountNote')
                 : t('kistiAmountNote', { unit: formatBdt(KISTI_UNIT) })}
             </p>
           </div>

@@ -7,7 +7,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   TARGET_SHARES: 15000,
   FOUNDING_AMOUNT: 100000000,
   TARGET_ENTREPRENEURS: 50,
-  FULL_PAYMENT_DISCOUNT_PER_SHARE: 10000, // ৳10,000 off per share when paid in full at once.
+  FULL_PAYMENT_DISCOUNT_PER_SHARE: 0, // multi-share discounts TBD — re-enable via the Setting when decided.
   INSTALLMENT_UNIT_AMOUNT: 50000, // per-kisti amount per share (4 kistis × ৳50,000 = ৳2,00,000 for one share).
   INSTALLMENT_COUNT: 4,
 } as const);

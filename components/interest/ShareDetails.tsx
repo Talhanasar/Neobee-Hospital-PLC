@@ -2,7 +2,6 @@ import { getTranslations } from 'next-intl/server';
 import { formatBdt } from '@/lib/money';
 
 const SHARE_PRICE = 200000;
-const DISCOUNT_PER_SHARE = 10000;
 const KISTI_UNIT = 50000;
 
 /**
@@ -39,9 +38,9 @@ export default async function ShareDetails() {
       <div className="grid gap-4 md:grid-cols-2">
         <div className="nb-card p-6">
           <h3 className="font-display text-lg font-bold text-ink">{t('fullTitle')}</h3>
-          <p className="mt-2 num font-display text-2xl font-bold text-ink">৳{formatBdt(SHARE_PRICE - DISCOUNT_PER_SHARE)}</p>
+          <p className="mt-2 num font-display text-2xl font-bold text-ink">৳{formatBdt(SHARE_PRICE)}</p>
           <p className="mt-1 text-sm text-ink-soft">
-            {t('fullBody', { full: formatBdt(SHARE_PRICE), discount: formatBdt(DISCOUNT_PER_SHARE) })}
+            {t('fullBody', { full: formatBdt(SHARE_PRICE) })}
           </p>
         </div>
         <div className="nb-card p-6">
