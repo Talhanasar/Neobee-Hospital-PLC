@@ -10,8 +10,8 @@ import {
   BadgeCheckIcon,
   CopyIcon,
   CopyXIcon,
-  HandshakeIcon,
   InfoIcon,
+  PhoneIcon,
   SendIcon,
 } from '@/components/ui/icons';
 
@@ -93,6 +93,11 @@ export default function LeadForm() {
         <Kicker>{t('kicker')}</Kicker>
         <h1 className="mt-3 font-display text-3xl font-bold text-ink">{t('h1')}</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-soft">{t('body')}</p>
+        <p className="mt-3 flex items-center gap-2 rounded-xl border border-line bg-paper px-3.5 py-2.5 text-sm text-ink">
+          <PhoneIcon size={15} className="shrink-0 text-honey-deep" aria-hidden="true" />
+          <span className="text-ink-soft">{t('callLabel')}</span>
+          <a href="tel:+8801700000000" className="num font-semibold text-ink hover:text-honey-deep">{t('callNumber')}</a>
+        </p>
 
         <form action={formAction} className="mt-6 space-y-5" noValidate>
           <Field label={t('name')} htmlFor="lead-name" error={nameError}>
@@ -171,28 +176,6 @@ export default function LeadForm() {
             {t('privacy')}
           </p>
         </form>
-      </div>
-
-      <div className="mx-auto mt-8">
-        <div className="nb-card p-6">
-          <p className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-honey-deep">
-            <HandshakeIcon size={15} aria-hidden="true" />
-            {t('steps')}
-          </p>
-          <ol className="mt-4 space-y-3">
-            {[t('step1'), t('step2'), t('step3')].map((s, i) => (
-              <li key={s} className="flex items-start gap-3 text-sm text-ink-soft">
-                <span
-                  aria-hidden="true"
-                  className="hex-clip-pointy mt-0.5 grid h-6 w-[26px] shrink-0 place-items-center bg-honey-soft font-mono text-[11px] font-semibold text-honey-deep"
-                >
-                  {i + 1}
-                </span>
-                {s}
-              </li>
-            ))}
-          </ol>
-        </div>
       </div>
     </div>
   );
