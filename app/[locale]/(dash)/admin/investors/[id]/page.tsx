@@ -8,6 +8,7 @@ import { getInvestorDetail } from '@/lib/queries';
 import { Money } from '@/components/ui/Money';
 import { Num } from '@/components/ui/Num';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
+import { InvestorBadge } from '@/components/ui/InvestorBadge';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { KistiStatusBadge } from '@/components/ui/KistiStatusBadge';
 import { getTranslations } from 'next-intl/server';
@@ -31,7 +32,7 @@ export default async function AdminInvestorDetailPage(
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="font-display text-2xl font-bold">{t('detailTitle', { name: investor.name })}</h2>
+          <div className="flex flex-wrap items-center gap-3"><h2 className="font-display text-2xl font-bold">{t('detailTitle', { name: investor.name })}</h2><InvestorBadge shares={totalShares} /></div>
           <p className="text-ink-soft">{t('detailLead')}</p>
         </div>
         <Link href="/admin" className="inline-flex items-center justify-center border border-line bg-panel rounded-lg font-semibold text-ink hover:border-ink focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2 px-3 py-[7px] text-[13px]">

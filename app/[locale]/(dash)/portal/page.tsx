@@ -5,6 +5,7 @@ import { requireInvestor, getSessionContext } from '@/lib/auth';
 import { listInvestmentsForInvestor, listRequestsForInvestor, listSchedulesForInvestor } from '@/lib/queries';
 import { Card, CardHead } from '@/components/ui/Card';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
+import { InvestorBadge } from '@/components/ui/InvestorBadge';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Money } from '@/components/ui/Money';
 import { buttonClasses } from '@/components/ui/Button';
@@ -30,6 +31,7 @@ export default async function PortalPage({ params }: { params: Promise<{ locale:
     listRequestsForInvestor(investor.id),
     listSchedulesForInvestor(investor.id),
   ]);
+  const confirmedShares = rows.filter((row) => row.status === 'CONFIRMED').reduce((sum, row) => sum + row.shares, 0);
   const hasContent = rows.length > 0 || requests.length > 0;
 
   // Next-kisti alert: first unpaid schedule row across all investments, soonest due first.
@@ -49,7 +51,7 @@ export default async function PortalPage({ params }: { params: Promise<{ locale:
             <span aria-hidden="true" className="inline-block h-2.5 w-2.5 bg-honey hex-clip" />
             {t('kicker')}
           </p>
-          <h1 className="mt-2 font-display text-2xl font-bold text-ink sm:text-3xl">{t('greeting', { name: investor.name })}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-3"><h1 className="font-display text-2xl font-bold text-ink sm:text-3xl">{t('greeting', { name: investor.name })}</h1><InvestorBadge shares={confirmedShares} /></div>
         </div>
         <div className="nb-card px-3 py-2">
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft">{t('phoneChip')}</p>
