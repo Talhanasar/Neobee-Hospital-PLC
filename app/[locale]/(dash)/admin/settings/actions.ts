@@ -17,6 +17,9 @@ const SETTING_KEYS = [
   'TARGET_SHARES',
   'FOUNDING_AMOUNT',
   'TARGET_ENTREPRENEURS',
+  'FULL_PAYMENT_DISCOUNT_PER_SHARE',
+  'FULL_PAYMENT_SHARE_LIMIT',
+  'INSTALLMENT_SHARE_LIMIT',
 ] as const;
 
 export type SettingsState = { ok: false; fieldErrors: Record<string, string[]>; formError?: string } | { ok: true };
@@ -64,6 +67,9 @@ const settingsSchema = z
     TARGET_SHARES: bdtInteger,
     FOUNDING_AMOUNT: bdtInteger,
     TARGET_ENTREPRENEURS: bdtInteger,
+    FULL_PAYMENT_DISCOUNT_PER_SHARE: bdtIntegerOrZero,
+    FULL_PAYMENT_SHARE_LIMIT: bdtInteger,
+    INSTALLMENT_SHARE_LIMIT: bdtInteger,
   })
   .strict() satisfies z.ZodType<Record<(typeof SETTING_KEYS)[number], number>>;
 

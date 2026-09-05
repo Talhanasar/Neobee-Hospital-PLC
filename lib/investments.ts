@@ -13,6 +13,7 @@ import {
 } from '@/lib/money';
 import { getSettings } from '@/lib/settings';
 import { createPaymentGroup } from '@/lib/payment-groups';
+import { assertSharePoolAllows } from '@/lib/share-pools';
 import { actionVerbs, writeAuditLog } from '@/lib/audit';
 import { ActorType, InvestmentStatus, InstallmentStatus, TransactionType, DepositMethod } from '@/lib/generated/prisma/client';
 import type { RegisterInvestmentInput } from '@/lib/validation';
@@ -182,6 +183,8 @@ export async function registerInvestment(
   const category: InvestmentCategory = deriveCategory(input.shares);
   const amountSnapshot = calculateAmount(input.shares, sharePrice);
   const incentiveAmount = calculateIncentive(input.shares, input.isEntrepreneur, incentivePerShare);
+
+  await assertSharePoolAllows('FULL', input.shares);
 
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     try {

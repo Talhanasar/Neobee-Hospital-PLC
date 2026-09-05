@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { randomUUID } from 'node:crypto';
 import { AuthError, requireStaff } from '@/lib/auth';
 import { registerInvestment } from '@/lib/investments';
+import { SharePoolExhaustedError } from '@/lib/share-pools';
 import { registerInvestmentSchema, validateSlipFile } from '@/lib/validation';
 import { storage, extensionForContentType } from '@/lib/storage';
 import { ZodError } from 'zod';
@@ -111,6 +112,9 @@ export async function registerInvestmentAction(prev: RegisterState, formData: Fo
     revalidatePath('/admin');
     return { ok: true, uid: created.uid, code: created.code, id: created.id, accountCreated };
   } catch (error) {
+    if (error instanceof SharePoolExhaustedError) {
+      return { ok: false, fieldErrors: {}, formError: error.plan === 'FULL' ? 'The instant-payment share pool for this phase is fully allocated.' : 'The kisti share pool for this phase is fully allocated.' };
+    }
     if (error instanceof RangeError) return { ok: false, fieldErrors: { shares: [error.message] } };
     throw error;
   }

@@ -222,9 +222,17 @@ export default function RegisterForm() {
         ))}
       </div>
 
-      {error ? (
+      {error || (signupState.ok === false && signupState.formError) ? (
         <div role="alert" className="rounded-xl border border-amber/40 bg-amber-soft/70 px-3.5 py-2.5 text-sm text-ink">
-          {error}
+          {error ?? (
+            signupState.ok === false && signupState.formError === 'fullPoolExhausted'
+              ? t('fullPoolExhausted')
+              : signupState.ok === false && signupState.formError === 'installmentPoolExhausted'
+              ? t('installmentPoolExhausted')
+              : signupState.ok === false && signupState.formError === 'phoneTaken'
+              ? t('errAlreadyRegistered')
+              : t('errorGeneric')
+          )}
         </div>
       ) : null}
 

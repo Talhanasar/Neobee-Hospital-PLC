@@ -14,6 +14,9 @@ const fields = [
   { name: 'TARGET_SHARES', label: 'settingsTargetShares', help: null, min: 1 },
   { name: 'FOUNDING_AMOUNT', label: 'settingsFoundingAmount', help: 'settingsFoundingAmountHelp', min: 1 },
   { name: 'TARGET_ENTREPRENEURS', label: 'settingsTargetEntrepreneurs', help: null, min: 1 },
+  { name: 'FULL_PAYMENT_DISCOUNT_PER_SHARE', label: 'settingsFullDiscount', help: 'settingsFullDiscountHelp', min: 0 },
+  { name: 'FULL_PAYMENT_SHARE_LIMIT', label: 'settingsFullShareLimit', help: 'settingsFullShareLimitHelp', min: 1 },
+  { name: 'INSTALLMENT_SHARE_LIMIT', label: 'settingsInstallmentShareLimit', help: 'settingsInstallmentShareLimitHelp', min: 1 },
 ] as const;
 
 function FieldError({ id, messages }: { id: string; messages?: string[] }) {
@@ -52,6 +55,7 @@ export function SettingsForm({ settings }: { settings: SettingsFormValues }) {
           );
         })}
       </div>
+      <p className="text-xs text-ink-soft">{t('settingsPoolTotal', { total: (settings.FULL_PAYMENT_SHARE_LIMIT + settings.INSTALLMENT_SHARE_LIMIT).toLocaleString('en-IN'), full: settings.FULL_PAYMENT_SHARE_LIMIT.toLocaleString('en-IN'), installment: settings.INSTALLMENT_SHARE_LIMIT.toLocaleString('en-IN') })}</p>
       <Button variant="primary" type="submit" disabled={pending}>{pending ? t('settingsSaving') : t('settingsSave')}</Button>
     </form>
   );

@@ -53,11 +53,11 @@ export default async function Certificate({ data, qrDataUrl }: { data: Certifica
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border-2 bg-[#F7FAFC] p-2 print:rounded-none print:border-0"
+      className="relative overflow-hidden rounded-2xl border-2 bg-[#F7FAFC] p-2 print:rounded-none print:border-0 print:break-inside-avoid"
       style={{ borderColor: tier.frame }}
     >
       {/* inner frame */}
-      <div className="relative rounded-xl border px-6 py-10 sm:px-10" style={{ borderColor: tier.frame }}>
+      <div className="relative rounded-xl border px-6 py-10 sm:px-10 print:px-6 print:py-6" style={{ borderColor: tier.frame }}>
         {/* golden tiers get a third, inset frame line */}
         {tier.double ? (
           <div aria-hidden="true" className="pointer-events-none absolute inset-2 rounded-lg border-2" style={{ borderColor: tier.accent, opacity: 0.55 }} />
@@ -80,12 +80,12 @@ export default async function Certificate({ data, qrDataUrl }: { data: Certifica
           </div>
         ) : null}
 
-        <div className="relative space-y-6 text-center">
+        <div className="relative space-y-6 text-center print:space-y-3">
           {/* eslint-disable-next-line @next/next/no-img-element -- local static brand asset */}
           <img
             src="/images/neobee-logo.jpeg"
             alt=""
-            className="mx-auto h-16 w-16 rounded-xl border border-line object-cover shadow-sm"
+            className="mx-auto h-16 w-16 rounded-xl border border-line object-cover shadow-sm print:h-14 print:w-14"
           />
           <p className="font-mono text-[10px] font-semibold tracking-[0.28em] text-ink-soft">
             {t('subHeader')}
@@ -154,7 +154,7 @@ export default async function Certificate({ data, qrDataUrl }: { data: Certifica
           </p>
           <p className="font-display text-xl font-bold text-ink"><Money value={data.amount} /></p>
 
-          <div className="mx-auto grid max-w-md grid-cols-3 gap-3 border-t border-[#0B6E99]/50 pt-5 text-left">
+          <div className="mx-auto grid max-w-md grid-cols-3 gap-3 border-t border-[#0B6E99]/50 pt-5 text-left print:pt-4">
             <div>
               <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-soft">{t('certNo')}</p>
               <p className="num mt-1 text-sm font-semibold">{data.certRef}</p>
@@ -169,7 +169,7 @@ export default async function Certificate({ data, qrDataUrl }: { data: Certifica
             </div>
           </div>
 
-          <div className="flex flex-wrap items-end justify-between gap-6 pt-8">
+          <div className="flex flex-wrap items-end justify-between gap-4 pt-8 sm:flex-nowrap sm:gap-6 print:flex-nowrap print:gap-6 print:pt-5">
             <div className="text-left">
               {/* eslint-disable-next-line @next/next/no-img-element -- data URL, not a remote asset */}
               <img src={qrDataUrl} alt={t('qrAlt', { code: data.code })} className="h-24 w-24" />
@@ -177,7 +177,7 @@ export default async function Certificate({ data, qrDataUrl }: { data: Certifica
                 {t('qrNote', { code: data.code })}
               </p>
             </div>
-            <div className="flex items-end gap-10">
+            <div className="flex items-end gap-4 sm:gap-10 print:gap-6">
               <div className="text-center">
                 <p aria-hidden="true" style={{ fontFamily: SIGNATURE_FONT }} className="text-[22px] leading-none text-ink/70">
                   {t('chairmanName')}

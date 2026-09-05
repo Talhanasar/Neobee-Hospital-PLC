@@ -3,7 +3,8 @@
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { AuthError, requireStaff } from '@/lib/auth';
-import { approveInvestmentRequest, approvePaymentRequest, rejectInvestmentRequest } from '@/lib/requests';import { reviewInvestmentRequestSchema, rejectInvestmentRequestSchema } from '@/lib/validation';
+import { approveInvestmentRequest, approvePaymentRequest, rejectInvestmentRequest } from '@/lib/requests';
+import { SharePoolExhaustedError } from '@/lib/share-pools';import { reviewInvestmentRequestSchema, rejectInvestmentRequestSchema } from '@/lib/validation';
 import { ZodError } from 'zod';
 import { demoResolveRequest, isDemoData } from '@/data/demo/store';
 
@@ -91,6 +92,9 @@ export async function approveRequestAction(id: string, prev: ReviewState, formDa
     }
     return { ok: true, investmentId: result.investmentId };
   } catch (error) {
+    if (error instanceof SharePoolExhaustedError) {
+      return { ok: false, fieldErrors: {}, formError: error.message };
+    }
     if (error instanceof Error) {
       return { ok: false, fieldErrors: {}, formError: error.message };
     }

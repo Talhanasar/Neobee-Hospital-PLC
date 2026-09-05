@@ -7,6 +7,7 @@ import { getCurrentUser, signUpInvestor, sendVerificationOtp, verifyEmailOtp, si
 import { sendOtpEmail } from '@/lib/auth-own/mailer';
 import { investorSignupSchema, validateSlipFile } from '@/lib/validation';
 import { submitInvestmentRequest } from '@/lib/requests';
+import { SharePoolExhaustedError } from '@/lib/share-pools';
 import { writeAuditLog, actionVerbs, getRequestMetadataFromHeaders } from '@/lib/audit';
 import { ActorType } from '@/lib/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
@@ -226,6 +227,9 @@ export async function investorSignupAction(
     revalidatePath('/admin/requests');
     return { ok: true, requestId: request.id };
   } catch (error) {
+    if (error instanceof SharePoolExhaustedError) {
+      return { ok: false, fieldErrors: {}, formError: error.plan === 'FULL' ? 'fullPoolExhausted' : 'installmentPoolExhausted' };
+    }
     if (error instanceof Error && 'code' in error && (error as { code?: string }).code === 'P2002') {
       const target = (error as { meta?: { target?: unknown[] } }).meta?.target;
       if (Array.isArray(target) && target.includes('phone')) {

@@ -48,7 +48,7 @@ function buildSettings(rows: SettingRow[]): Settings {
 }
 
 export async function getSettings(client: SettingsClient = defaultSettingsClient): Promise<Settings> {
-  if (isDemoData()) return { ...DEMO_SETTINGS };
+  if (isDemoData()) return { ...DEFAULT_SETTINGS, ...DEMO_SETTINGS };
   const rows = await client.setting.findMany();
   return buildSettings(rows);
 }
@@ -67,8 +67,8 @@ export async function updateSetting(
   staffId: string,
   client: SettingsClient = defaultSettingsClient,
 ): Promise<void> {
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new RangeError('value must be a positive safe integer');
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError('value must be a non-negative safe integer');
   }
 
   // Do not write an audit log here; the caller composes this with writeAuditLog in one transaction.

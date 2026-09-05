@@ -8,6 +8,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   FOUNDING_AMOUNT: 100000000,
   TARGET_ENTREPRENEURS: 50,
   FULL_PAYMENT_DISCOUNT_PER_SHARE: 10000, // 5% early-settlement discount (৳10,000 per ৳200,000 share) when every chosen share is paid at once.
+  FULL_PAYMENT_SHARE_LIMIT: 550, // phase pool for full (one-time) payment shares — 550 of the 750-share allocation; blocks registration when exhausted.
+  INSTALLMENT_SHARE_LIMIT: 200, // phase pool for kisti (installment) shares — 200 of the 750-share allocation; blocks registration when exhausted.
   INSTALLMENT_UNIT_AMOUNT: 50000, // per-kisti amount per share (4 kistis × ৳50,000 = ৳2,00,000 for one share).
   INSTALLMENT_COUNT: 4,
 } as const);

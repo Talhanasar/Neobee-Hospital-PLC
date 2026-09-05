@@ -18,6 +18,7 @@ import { actionVerbs, writeAuditLog } from '@/lib/audit';
 import { ActorType, InstallmentStatus, InvestmentRequestStatus, InvestmentStatus, DepositMethod, TransactionType, RequestKind } from '@/lib/generated/prisma/client';
 import { createInvestmentRecord } from '@/lib/investments';
 import { createPaymentGroup } from '@/lib/payment-groups';
+import { assertSharePoolAllows } from '@/lib/share-pools';
 
 export type RequestMeta = { ipAddress: string | null; userAgent: string | null };
 
@@ -77,6 +78,7 @@ export async function submitInvestmentRequest(
   const settings = await getSettings();
   const sharePrice = settings.SHARE_PRICE;
   const incentivePerShare = settings.INCENTIVE_PER_SHARE;
+  await assertSharePoolAllows(paymentPlan, input.shares);
   // FULL: the whole discounted total is deposited up front.
   // INSTALLMENT: only kisti 1 is deposited now; the rest is scheduled on approval.
   const amount = paymentPlan === 'FULL'
@@ -194,6 +196,10 @@ export async function approveInvestmentRequest(
     // Approval by staff IS the confirmation — the investor self-confirm flow is retired.
     const investmentStatus = InvestmentStatus.CONFIRMED;
     const confirmedAt = new Date();
+
+    if (request.kind === 'SHARE_PURCHASE' && request.paymentPlan) {
+      await assertSharePoolAllows(request.paymentPlan, effectiveShares, tx, { excludeRequestId: request.id });
+    }
 
     // Every approval creates the payment group that owns this purchase:
     // FULL → INSTANT (NHL-PG-…), INSTALLMENT → KISTI agreement (NHL-K-…).

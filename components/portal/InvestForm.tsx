@@ -95,7 +95,7 @@ export default function InvestForm({
       ) : null}
       {state.ok === false && state.formError ? (
         <div role="alert" className="bg-[#FBE4E2] text-[#B3261E] rounded-card px-4 py-3">
-          {state.formError === 'authRequired' ? t('errorAuth') : state.formError === 'pendingApproval' ? t('pendingBody') : state.formError === 'openRequestCap' ? t('errorOpenCap') : state.formError === 'entrepreneurMinShares' ? t('errorEntrepreneur') : state.formError === 'sharesRange' ? t('errorSharesRange') : state.formError === 'targetInvestment' ? t('errorChooseInvestment') : state.formError === 'amountInvalid' ? t('errorAmount') : t('errorGeneric')}
+          {state.formError === 'authRequired' ? t('errorAuth') : state.formError === 'pendingApproval' ? t('pendingBody') : state.formError === 'openRequestCap' ? t('errorOpenCap') : state.formError === 'entrepreneurMinShares' ? t('errorEntrepreneur') : state.formError === 'sharesRange' ? t('errorSharesRange') : state.formError === 'targetInvestment' ? t('errorChooseInvestment') : state.formError === 'amountInvalid' ? t('errorAmount') : state.formError === 'fullPoolExhausted' ? t('fullPoolExhausted') : state.formError === 'installmentPoolExhausted' ? t('installmentPoolExhausted') : t('errorGeneric')}
         </div>
       ) : null}
 

@@ -9,6 +9,7 @@ import {
   submitPaymentRequest,
   type SubmitInvestmentRequestInput,
 } from '@/lib/requests';
+import { SharePoolExhaustedError } from '@/lib/share-pools';
 import { storage, extensionForContentType } from '@/lib/storage';
 import { submitInvestmentRequestSchema, submitPaymentRequestSchema, validateSlipFile } from '@/lib/validation';
 import { demoCreateRequest, isDemoData } from '@/data/demo/store';
@@ -157,6 +158,9 @@ export async function submitInvestmentRequestAction(
     revalidatePath('/admin/requests');
     return { ok: true, requestId: request.id };
   } catch (error) {
+    if (error instanceof SharePoolExhaustedError) {
+      return { ok: false, fieldErrors: {}, formError: error.plan === 'FULL' ? 'fullPoolExhausted' : 'installmentPoolExhausted' };
+    }
     if (error instanceof Error) {
       if (error.message.includes('3 open requests')) {
         return { ok: false, fieldErrors: {}, formError: 'openRequestCap' };

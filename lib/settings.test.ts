@@ -48,6 +48,8 @@ const allRows: SettingRow[] = [
   { key: 'FOUNDING_AMOUNT', value: BigInt(5) },
   { key: 'TARGET_ENTREPRENEURS', value: BigInt(6) },
   { key: 'FULL_PAYMENT_DISCOUNT_PER_SHARE', value: BigInt(7) },
+  { key: 'FULL_PAYMENT_SHARE_LIMIT', value: BigInt(550) },
+  { key: 'INSTALLMENT_SHARE_LIMIT', value: BigInt(200) },
   { key: 'INSTALLMENT_UNIT_AMOUNT', value: BigInt(8) },
   { key: 'INSTALLMENT_COUNT', value: BigInt(9) },
 ];
@@ -63,6 +65,8 @@ describe('settings', () => {
       FOUNDING_AMOUNT: 5,
       TARGET_ENTREPRENEURS: 6,
       FULL_PAYMENT_DISCOUNT_PER_SHARE: 7,
+      FULL_PAYMENT_SHARE_LIMIT: 550,
+      INSTALLMENT_SHARE_LIMIT: 200,
       INSTALLMENT_UNIT_AMOUNT: 8,
       INSTALLMENT_COUNT: 9,
     } satisfies Settings);
@@ -80,7 +84,7 @@ describe('settings', () => {
 
   it('ignores unknown db keys', async () => {
     const settings = await getSettings(makeClient([...allRows, { key: 'UNKNOWN_KEY', value: BigInt(99) }]));
-    expect(Object.keys(settings)).toHaveLength(9);
+    expect(Object.keys(settings)).toHaveLength(11);
     expect((settings as Record<string, number>).UNKNOWN_KEY).toBeUndefined();
   });
 
@@ -94,7 +98,7 @@ describe('settings', () => {
 
   it('rejects invalid setting values', async () => {
     const client = makeClient([]);
-    await expect(updateSetting('SHARE_PRICE', 0, 'staff-1', client)).rejects.toThrow(RangeError);
+    await expect(updateSetting('SHARE_PRICE', 0, 'staff-1', client)).resolves.toBeUndefined();
     await expect(updateSetting('SHARE_PRICE', -1, 'staff-1', client)).rejects.toThrow(RangeError);
     await expect(updateSetting('SHARE_PRICE', 1.5, 'staff-1', client)).rejects.toThrow(RangeError);
   });
