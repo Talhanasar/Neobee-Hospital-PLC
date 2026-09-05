@@ -48,7 +48,7 @@ export default function VerifyLookup() {
     setLoading(true);
     setError(null);
     setResult(null);
-    const query = /^NEO-\d{4,}$/.test(trimmed)
+    const query = /^(NEO-\d{4,}|NHL-S-\d{6,})$/.test(trimmed)
       ? `uid=${encodeURIComponent(trimmed)}`
       : `code=${encodeURIComponent(trimmed.toUpperCase())}`;
     try {

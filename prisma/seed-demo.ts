@@ -93,8 +93,11 @@ const INSTANT_UID_SEQUENCE = 9001;
 const KISTI_UID = 'NHL-S-009002';
 const KISTI_UID_SEQUENCE = 9002;
 
-const INSTANT_CODE = 'NB-DEMOA';
-const KISTI_CODE = 'NB-DEMOB';
+// Verification codes follow the real format: NB- + 6 chars from the
+// unambiguous alphabet (CODE_ALPHABET — no I/O/0/1). Fixed values keep the
+// demo reproducible across re-seeds.
+const INSTANT_CODE = 'NB-D3MA92';
+const KISTI_CODE = 'NB-K57B24';
 
 // Kisti plan: 4 kistis of ৳50,000 (1 share × INSTALLMENT_UNIT_AMOUNT), due
 // every 6 months. Kisti 1 is already paid — the plan is "going on".
@@ -221,6 +224,7 @@ async function main() {
           sharePrice,
           incentivePerShare,
           amount: instantAmount,
+          code: INSTANT_CODE,
           depositMethod: 'BANK_TRANSFER',
           depositRef: 'DEMO-001',
           depositDate: recentDate,
@@ -318,6 +322,7 @@ async function main() {
           incentivePerShare,
           amount: kistiAmount,
           paymentPlan: 'INSTALLMENT',
+          code: KISTI_CODE,
           depositMethod: 'MOBILE_BANKING',
           depositRef: 'DEMO-002',
           depositDate: recentDate,
