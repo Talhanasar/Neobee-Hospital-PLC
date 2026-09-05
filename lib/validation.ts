@@ -82,7 +82,7 @@ export const verifyQuerySchema = z
       .trim()
       .regex(/^NB-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/)
       .optional(),
-    uid: z.string().trim().regex(/^NEO-\d{4,}$/).optional(),
+    uid: z.string().trim().regex(/^(NEO-\d{4,}|NHL-S-\d{4,})$/).optional(), // legacy NEO- ids and the current NHL-S series both resolve
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -128,7 +128,7 @@ export const rejectInvestmentRequestSchema = z
   })
   .strict();
 
-// Email is deliberately absent: it is the Supabase Auth identity (OTP login,
+// Email is deliberately absent: it is the own-auth identity (login,
 // password reset) and must never diverge from the Investor row. Phone and TIN
 // are editable from the account form; phone stays @unique in the Investor model
 // (the action enforces the duplicate-phone rule explicitly).
@@ -203,7 +203,7 @@ export const investorSignupSchema = z
       ctx.addIssue({
         code: 'custom',
         path: ['paymentPlan'],
-        message: 'Installment (kisti) payment is only available for exactly 1 share',
+        message: 'Installment (kisti) payment requires at least 1 share',
       });
     }
   });

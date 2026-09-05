@@ -30,7 +30,7 @@ export type AccountDetails = {
 };
 
 /** Investor account details — name / NID / address are editable; phone and
-    email are the Supabase auth identities (OTP login, password reset) and
+    email are the own-auth identities (login, password reset) and
     stay read-only. */
 export default function AccountDetailsForm({ account }: { account: AccountDetails }) {
   const t = useTranslations('portal');

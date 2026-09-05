@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   // Config redirects run before Proxy (see Next 16 proxy.md execution order),
   // so the next-intl proxy cannot intercept these. Prefixed variants cover
   // both locales; unprefixed covers the default-locale URL.
+  allowedDevOrigins: ['192.168.0.105','192.168.0.102','192.168.0.103','192.168.0.104'],
   async redirects() {
     return [
       { source: "/progress", destination: "/", permanent: true },

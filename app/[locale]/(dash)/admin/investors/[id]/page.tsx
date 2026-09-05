@@ -129,7 +129,18 @@ export default async function AdminInvestorDetailPage(
                   return (
                     <React.Fragment key={inv.id}>
                       <tr className="hover:bg-honey-soft/50">
-                        <td className={`num ${rowBorder}`}>{inv.uid}</td>
+                        <td className={`num ${rowBorder}`}>
+                          <div>{inv.uid}</div>
+                          {inv.paymentGroup ? (
+                            <div className="mt-0.5 text-[11px] leading-tight text-ink-soft">
+                              <span className="font-mono">{inv.paymentGroup.ref}</span>
+                              {' · '}
+                              {inv.paymentGroup.kind === 'KISTI' ? t('groupKindKisti') : t('groupKindInstant')}
+                              {' · '}
+                              {t('groupShareCount', { count: inv.paymentGroup.shareCount })}
+                            </div>
+                          ) : null}
+                        </td>
                         <td className={rowBorder}>
                           {inv.paymentPlan === 'INSTALLMENT' ? t('planInstallment') : t('planFull')}
                         </td>

@@ -2,12 +2,14 @@
 
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { randomUUID } from 'node:crypto';
 import { AuthError, requireStaff } from '@/lib/auth';
 import { registerInvestment } from '@/lib/investments';
-import { registerInvestmentSchema } from '@/lib/validation';
+import { registerInvestmentSchema, validateSlipFile } from '@/lib/validation';
+import { storage, extensionForContentType } from '@/lib/storage';
 import { ZodError } from 'zod';
 import { demoCreateInvestorAccount, demoRegisterInvestment, isDemoData } from '@/data/demo/store';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createAuthUser } from '@/lib/auth-own/store';
 import { prisma } from '@/lib/db';
 import { writeAuditLog, actionVerbs } from '@/lib/audit';
 import { ActorType } from '@/lib/generated/prisma/client';
@@ -41,6 +43,22 @@ export async function registerInvestmentAction(prev: RegisterState, formData: Fo
   };
   const parsed = registerInvestmentSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, fieldErrors: flattenFieldErrors(parsed.error) };
+
+  // Optional deposit-receipt image (staff scanned the slip the investor paid with).
+  // Skipped in DEMO_DATA mode — the in-memory demo store has no file concept.
+  const slip = formData.get('slipFile');
+  let slipFileKey: string | null = null;
+  if (!isDemoData() && slip instanceof File && slip.size > 0) {
+    const slipError = validateSlipFile(slip);
+    if (slipError) return { ok: false, fieldErrors: { slipFile: [slipError] } };
+    try {
+      slipFileKey = `slips/${randomUUID()}${extensionForContentType(slip.type)}`;
+      await storage.uploadFile(slipFileKey, new Uint8Array(await slip.arrayBuffer()), slip.type);
+    } catch {
+      return { ok: false, fieldErrors: { slipFile: ['Could not upload the receipt image. Please try again.'] } };
+    }
+  }
+
   const h = await headers();
   const realIp = h.get('x-real-ip')?.trim() ?? null;
   const forwardedFor = h.get('x-forwarded-for');
@@ -61,43 +79,20 @@ export async function registerInvestmentAction(prev: RegisterState, formData: Fo
     return { ok: true, uid: created.uid, code: created.code, id: created.id, accountCreated };
   }
   try {
-    const created = await registerInvestment(parsed.data, staff.id, meta);
+    const created = await registerInvestment(parsed.data, staff.id, meta, slipFileKey);
     let accountCreated = false;
     if (parsed.data.accountPassword && parsed.data.email) {
       try {
-        const admin = await createAdminClient();
         const email = parsed.data.email;
         const password = parsed.data.accountPassword;
-        const name = parsed.data.name;
-        const phone = parsed.data.phone;
-        const tryCreate = async (withPhone: boolean) => {
-          const attrs: Record<string, unknown> = {
-            email,
-            password,
-            email_confirm: true,
-            user_metadata: { name, phone },
-          };
-          if (withPhone) {
-            attrs.phone = phone;
-            attrs.phone_confirm = true;
-          }
-          return admin.auth.admin.createUser(attrs as Parameters<typeof admin.auth.admin.createUser>[0]);
-        };
-        let createResult = await tryCreate(true);
-        let createError = createResult.error;
-        if (createError && /phone|provider|disabled/i.test(createError.message)) {
-          console.warn(`createUser with phone rejected for ${email}; retrying email-only: ${createError.message}`);
-          createResult = await tryCreate(false);
-          createError = createResult.error;
-        }
-        if (createError) {
-          if (createError.status === 422 || /already/i.test(createError.message)) {
+        const result = await createAuthUser(email, password, 'INVESTOR');
+        if (!result.ok) {
+          if (result.error === 'emailTaken') {
             return { ok: false, fieldErrors: { email: ['An account with this email already exists'] } };
           }
-          throw createError;
+          throw new Error('Failed to create account');
         }
-        const authUser = createResult.data?.user;
-        if (!authUser) throw new Error('createUser returned no user object.');
+        const authUser = result.user;
         await prisma.investor.update({ where: { id: created.investorId }, data: { authUserId: authUser.id } });
         await writeAuditLog({
           actorType: ActorType.STAFF,
@@ -110,7 +105,7 @@ export async function registerInvestmentAction(prev: RegisterState, formData: Fo
         });
         accountCreated = true;
       } catch {
-        return { ok: false, fieldErrors: {}, formError: 'Could not create the login account. The investment was registered — create the account from Supabase dashboard or retry.' };
+        return { ok: false, fieldErrors: {}, formError: 'Could not create the login account. The investment was registered — retry creating the account.' };
       }
     }
     revalidatePath('/admin');

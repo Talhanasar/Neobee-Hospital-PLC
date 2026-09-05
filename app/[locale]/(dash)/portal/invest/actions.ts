@@ -9,7 +9,7 @@ import {
   submitPaymentRequest,
   type SubmitInvestmentRequestInput,
 } from '@/lib/requests';
-import { storage } from '@/lib/storage';
+import { storage, extensionForContentType } from '@/lib/storage';
 import { submitInvestmentRequestSchema, submitPaymentRequestSchema, validateSlipFile } from '@/lib/validation';
 import { demoCreateRequest, isDemoData } from '@/data/demo/store';
 import { ZodError } from 'zod';
@@ -94,7 +94,7 @@ export async function submitInvestmentRequestAction(
       if (slip instanceof File && slip.size > 0) {
         const slipError = validateSlipFile(slip);
         if (slipError) return { ok: false, fieldErrors: { slipFile: [slipError] } };
-        slipFileKey = `slips/${randomUUID()}`;
+        slipFileKey = `slips/${randomUUID()}${extensionForContentType(slip.type)}`;
         await storage.uploadFile(slipFileKey, new Uint8Array(await slip.arrayBuffer()), slip.type);
       }
 

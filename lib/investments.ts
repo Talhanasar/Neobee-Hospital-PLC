@@ -12,6 +12,7 @@ import {
   type PaymentPlanValue,
 } from '@/lib/money';
 import { getSettings } from '@/lib/settings';
+import { createPaymentGroup } from '@/lib/payment-groups';
 import { actionVerbs, writeAuditLog } from '@/lib/audit';
 import { ActorType, InvestmentStatus, InstallmentStatus, TransactionType, DepositMethod } from '@/lib/generated/prisma/client';
 import type { RegisterInvestmentInput } from '@/lib/validation';
@@ -58,11 +59,18 @@ async function nextInvestmentUid(client: Prisma.TransactionClient): Promise<{ ui
   return { uidSequence: sequence, uid: formatUid(sequence) };
 }
 
+// Overloaded params: the declared CreateInvestmentRecordParams plus the
+// optional payment-group link added for combined payments / kisti agreements.
+type CreateRecordParams = CreateInvestmentRecordParams & { paymentGroupId?: string | null };
+
 export async function createInvestmentRecord(
   tx: Prisma.TransactionClient,
-  params: CreateInvestmentRecordParams,
+  params: CreateRecordParams,
 ): Promise<import('@/lib/generated/prisma/client').Investment> {
-  const { uidSequence, uid } = await nextInvestmentUid(tx);
+  const { uidSequence, uid, paymentGroupId } = await (async () => {
+    const base = await nextInvestmentUid(tx);
+    return { ...base, paymentGroupId: params.paymentGroupId ?? null };
+  })();
   const code = generateVerificationCode();
 
   // FULL plans are paid in one shot, so fullyPaidAt is set immediately.
@@ -92,6 +100,7 @@ export async function createInvestmentRecord(
       notes: params.notes,
       status: params.status,
       recordedByStaffId: params.recordedByStaffId,
+      paymentGroupId,
     },
   });
 
@@ -110,9 +119,11 @@ export async function createInvestmentRecord(
       throw new RangeError('INSTALLMENT_DEADLINES must have 4 entries');
     }
     // Kisti 1 is paid at registration; kistis 2–4 get SCHEDULED rows with the fixed deadlines.
+    // Rows also carry the owning group when the investment belongs to an NHL-K agreement.
     await tx.installmentSchedule.create({
       data: {
         investmentId: investment.id,
+        paymentGroupId,
         installmentNo: 1,
         dueDate: new Date(INSTALLMENT_DEADLINES[0]),
         amount: params.amount,
@@ -125,6 +136,7 @@ export async function createInvestmentRecord(
       await tx.installmentSchedule.create({
         data: {
           investmentId: investment.id,
+          paymentGroupId,
           installmentNo: kisti,
           dueDate: new Date(INSTALLMENT_DEADLINES[kisti - 1]),
           amount: kisti === 4
@@ -160,6 +172,7 @@ export async function registerInvestment(
   input: RegisterInvestmentInput,
   staffId: string,
   requestMeta: RequestMeta,
+  slipFileKey?: string | null,
 ): Promise<import('@/lib/generated/prisma/client').Investment> {
   const settings = await getSettings();
   const sharePrice = settings.SHARE_PRICE;
@@ -200,7 +213,7 @@ export async function registerInvestment(
           // Walk-in desk registration: staff collected the full amount in hand.
           discountPerShare: 0,
           paymentPlan: 'FULL',
-          slipFileKey: null,
+          slipFileKey: slipFileKey ?? null,
           amount: amountSnapshot,
           totalAmount: amountSnapshot,
           depositMethod: input.depositMethod,
@@ -209,6 +222,13 @@ export async function registerInvestment(
           notes: input.notes ?? null,
           recordedByStaffId: staffId,
           status: InvestmentStatus.PENDING,
+          paymentGroupId: (await createPaymentGroup(tx, {
+            investorId: investor.id,
+            kind: 'INSTANT',
+            shareCount: input.shares,
+            totalAmount: amountSnapshot,
+            slipFileKey: slipFileKey ?? null,
+          })).id,
         });
 
         await writeAuditLog(

@@ -11,7 +11,7 @@ export interface GalleryItem {
 }
 
 export const GALLERY: GalleryItem[] = [
-  { src: '/images/hero-hospital.png', category: 'render', captionKey: 'item1Caption' },
+  { src: '/images/hospital-hero.png', category: 'render', captionKey: 'item1Caption' },
   { src: '/images/render-lobby.png', category: 'render', captionKey: 'item2Caption' },
   { src: '/images/render-ward.png', category: 'render', captionKey: 'item3Caption' },
   { src: '/images/about-blueprint.png', category: 'render', captionKey: 'item4Caption' },

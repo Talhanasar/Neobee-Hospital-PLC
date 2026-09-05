@@ -26,6 +26,10 @@
   --color-blue: #1E5F8E;
   --color-blue-soft: #E2EEF6;
 
+  --color-brand-navy: #1B3B6F;
+  --color-brand-leaf: #76B82A;
+  --color-brand-navy-deep: #0E1C33;
+
   --radius-card: 14px;
   --breakpoint-md: 760px;
 }

@@ -17,7 +17,9 @@ export default async function ReceiptPage({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   const embed = sp.embed;
   try { await requireStaff(); } catch (error) { if (error instanceof AuthError) redirect({ href: '/login', locale }); throw error; }
-  const data = await getReceiptData(id);
+  const kistiParam = typeof sp.kisti === 'string' ? sp.kisti : undefined;
+  const installmentNo = kistiParam != null && kistiParam !== '' && Number.isInteger(Number(kistiParam)) ? Number(kistiParam) : undefined;
+  const data = await getReceiptData(id, installmentNo != null ? { installmentNo } : undefined);
   if (!data) notFound();
   const payments = await listPaymentsForInvestment(id);
   const qrDataUrl = await renderQrDataUrl(verificationQrPayload({ code: data.code }));

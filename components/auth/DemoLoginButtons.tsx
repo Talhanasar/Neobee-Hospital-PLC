@@ -9,13 +9,14 @@ import { ShieldCheckIcon, UserRoundIcon } from '@/components/ui/icons';
 // One-click demo tour on the login card, ported from the reference design:
 // tiles (hex icon + label + sub) that sign in as the seeded demo investors
 // or admin. Visually secondary to the real email+password form. The kisti
-// tile is DEMO_DATA-only — there is no Supabase-seeded identity for it.
-export default function DemoLoginButtons() {
+// tile shows whenever demo login is enabled — the seeded database carries a
+// real kisti investor identity (demo-kisti@neobee.test).
+export default function DemoLoginButtons({ showKisti: showKistiProp = false }: { showKisti?: boolean }) {
   const t = useTranslations('login');
   const router = useRouter();
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState(false);
-  const showKisti = process.env.NEXT_PUBLIC_DEMO_DATA === 'true';
+  const showKisti = showKistiProp || process.env.NEXT_PUBLIC_DEMO_DATA === 'true';
 
   const handle = (role: 'investor' | 'investor-kisti' | 'admin') => {
     if (isPending) return;

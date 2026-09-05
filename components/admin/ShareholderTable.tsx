@@ -84,10 +84,22 @@ export async function ShareholderTable({ result, query }: { result: InvestmentLi
               result.items.map((row, index) => {
                 const last = index === result.items.length - 1;
                 const rowBorder = ['px-4 py-3 border-b border-line text-sm align-middle', last && row.paymentPlan !== 'INSTALLMENT' ? 'border-b-0' : ''].join(' ');
+                const kistiBase = row.group && row.group.kind === 'KISTI' ? row.group.ref : row.uid;
                 return (
                   <React.Fragment key={row.id}>
                   <tr className="hover:bg-honey-soft/50">
-                    <td className={`num ${rowBorder}`}>{row.uid}</td>
+                    <td className={`num ${rowBorder}`}>
+                      <div>{row.uid}</div>
+                      {row.group ? (
+                        <div className="mt-0.5 text-[11px] leading-tight text-ink-soft">
+                          <span className="font-mono">{row.group.ref}</span>
+                          {' · '}
+                          {row.group.kind === 'KISTI' ? t('groupKindKisti') : t('groupKindInstant')}
+                          {' · '}
+                          {t('groupShareCount', { count: row.group.shareCount })}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className={rowBorder}>
                       <div className="font-semibold">
                         <Link href={`/admin/investors/${row.investorId}`} className="hover:underline" aria-label={t('rowDetail', { name: row.investorName })}>
@@ -112,7 +124,8 @@ export async function ShareholderTable({ result, query }: { result: InvestmentLi
                     <td className={`${rowBorder} text-right whitespace-nowrap`}>
                       {/* No delete action: the ledger is append-only and the old client-side destroy button must not return. */}
                       <div className="inline-flex gap-2">
-                        <DocumentModal title={`${tPortal('receiptModalTitle')} · ${row.uid}`} iframeSrc={`/${locale}/admin/receipts/${row.id}`} downloadHref={`/api/investments/${row.id}/receipt`} downloadLabel={tPortal('receiptDownload')} triggerLabel={t('rowReceipt')} triggerClassName={buttonClasses('default', 'sm')} />
+                        {!(row.paymentPlan === 'INSTALLMENT' && row.kistis.length > 0) ? <DocumentModal title={`${tPortal('receiptModalTitle')} · ${row.uid}`} iframeSrc={`/${locale}/admin/receipts/${row.id}`} downloadHref={`/api/investments/${row.id}/receipt`} downloadLabel={tPortal('receiptDownload')} triggerLabel={t('rowReceipt')} triggerClassName={buttonClasses('default', 'sm')} /> : null}
+                        {row.slipFileKey ? <DocumentModal title={`${t('slipView')} · ${row.uid}`} iframeSrc={`/api/files/${row.slipFileKey}`} downloadHref={`/api/files/${row.slipFileKey}`} downloadLabel={t('slipView')} triggerLabel={t('slipView')} triggerClassName={buttonClasses('default', 'sm')} /> : null}
                         <Link className={buttonClasses('default', 'sm')} href={`/admin/receipts/${row.id}?qr=1`}>{t('rowQr')}</Link>
                       </div>
                     </td>
@@ -125,24 +138,30 @@ export async function ShareholderTable({ result, query }: { result: InvestmentLi
                             {t('kistiToggle', { uid: row.uid })}
                           </summary>
                           <div className="mt-2 overflow-x-auto">
-                            <table className="w-full min-w-[520px] border-collapse text-xs">
-                              <thead>
-                                <tr className="text-left">
-                                  <th scope="col" className="py-1.5 pr-4 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('colKistiId')}</th>
-                                  <th scope="col" className="py-1.5 pr-4 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('kistiAmountCol')}</th>
-                                  <th scope="col" className="py-1.5 pr-4 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('kistiDueCol')}</th>
-                                  <th scope="col" className="py-1.5 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('kistiStatusCol')}</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {row.kistis.map((k) => (
-                                  <tr key={k.installmentNo} className="border-t border-line">
-                                    <td className="num py-1.5 pr-4">{`${row.uid}-K${k.installmentNo}`}</td>
-                                    <td className="py-1.5 pr-4"><Money value={k.amount} /></td>
-                                    <td className="num py-1.5 pr-4">{k.dueDate.toISOString().slice(0, 10)}</td>
-                                    <td className="py-1.5"><KistiStatusBadge status={k.status as 'SCHEDULED' | 'PAID' | 'OVERDUE' | 'CANCELLED'} /></td>
-                                  </tr>
-                                ))}
+	                            <table className="w-full min-w-[520px] border-collapse text-xs">
+	                              <thead>
+	                                <tr className="text-left">
+	                                  <th scope="col" className="py-1.5 pr-4 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('colKistiId')}</th>
+	                                  <th scope="col" className="py-1.5 pr-4 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('kistiAmountCol')}</th>
+	                                  <th scope="col" className="py-1.5 pr-4 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('kistiDueCol')}</th>
+	                                  <th scope="col" className="py-1.5 pr-4 font-mono uppercase tracking-[0.1em] text-ink-soft">{t('kistiStatusCol')}</th>
+	                                  <th scope="col" className="py-1.5 text-right font-mono uppercase tracking-[0.1em] text-ink-soft">{t('colActions')}</th>
+	                                </tr>
+	                              </thead>
+	                              <tbody>
+	                                {row.kistis.map((k) => (
+	                                  <tr key={k.installmentNo} className="border-t border-line">
+	                                    <td className="num py-1.5 pr-4">{`${kistiBase}-K${k.installmentNo}`}</td>
+	                                    <td className="py-1.5 pr-4"><Money value={k.amount} /></td>
+	                                    <td className="num py-1.5 pr-4">{k.dueDate.toISOString().slice(0, 10)}</td>
+	                                    <td className="py-1.5"><KistiStatusBadge status={k.status as 'SCHEDULED' | 'PAID' | 'OVERDUE' | 'CANCELLED'} /></td>
+	                                    <td className="py-1.5 text-right whitespace-nowrap">
+	                                      {k.status === 'PAID' ? (
+	                                        <DocumentModal title={`${tPortal('receiptModalTitle')} · ${kistiBase}-K${k.installmentNo}`} iframeSrc={`/${locale}/admin/receipts/${row.id}?kisti=${k.installmentNo}`} downloadHref={`/api/investments/${row.id}/receipt?kisti=${k.installmentNo}`} downloadLabel={tPortal('receiptDownload')} triggerLabel={t('rowReceipt')} triggerClassName={buttonClasses('default', 'sm')} />
+	                                      ) : null}
+	                                    </td>
+	                                  </tr>
+	                                ))}
                               </tbody>
                             </table>
                           </div>

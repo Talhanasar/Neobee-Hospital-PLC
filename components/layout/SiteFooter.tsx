@@ -1,13 +1,13 @@
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
-import { HexLogo } from '@/components/ui/bits';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { FlaskConicalIcon, MailIcon, MapPinIcon, PhoneIcon } from '@/components/ui/icons';
 import { getSessionContext } from '@/lib/auth';
 
 type Props = { session: Awaited<ReturnType<typeof getSessionContext>> };
 
-const heading = 'font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft';
-const link = 'text-sm text-ink-soft transition-colors hover:text-honey-deep focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2';
+const heading = 'font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50';
+const link = 'text-sm text-white/70 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2';
 
 export default async function SiteFooter({ session }: Props) {
   const [tbrand, tnav, tfoot] = await Promise.all([
@@ -19,19 +19,25 @@ export default async function SiteFooter({ session }: Props) {
   const dashboardHref = session.isStaff ? '/admin' : '/portal';
 
   return (
-    <footer className="no-print mt-auto border-t border-line bg-panel">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-10 sm:px-6 md:grid-cols-[1.5fr_1fr_1fr_1.2fr]">
+    <footer className="no-print mt-auto bg-brand-navy-deep text-white/90">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.5fr_1fr_1fr_1.2fr]">
         <div>
-          <div className="flex items-center gap-2.5">
-            <HexLogo size={34} />
+          <div className="flex items-center gap-3">
+            <BrandLogo size={72} />
             <span className="leading-none">
-              <span className="block font-display text-[17px] font-bold tracking-tight text-ink">{tbrand('name')}</span>
-              <span className="mt-1 block font-mono text-[9.5px] uppercase tracking-[0.24em] text-honey-deep">{tbrand('suffix')}</span>
+              <span className="block font-display text-[20px] font-bold leading-none tracking-tight">
+                <span className="text-white">Neo</span>
+                <span className="text-brand-leaf">bee</span>
+                <span className="text-white"> Hospital</span>
+              </span>
+              <span className="mt-1 block font-mono text-[9.5px] uppercase tracking-[0.24em] text-brand-leaf">
+                {tbrand('suffix')}
+              </span>
             </span>
           </div>
-          <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-soft">{tfoot('tagline')}</p>
-          <span className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 font-mono text-[10.5px] uppercase tracking-wider text-ink-soft">
-            <FlaskConicalIcon size={12} className="text-honey-deep" aria-hidden="true" />
+          <p className="mt-4 max-w-xs text-sm leading-relaxed text-white/60">{tfoot('tagline')}</p>
+          <span className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-white/15 px-2.5 py-1 font-mono text-[10.5px] uppercase tracking-wider text-white/60">
+            <FlaskConicalIcon size={12} className="text-brand-leaf" aria-hidden="true" />
             {tfoot('depositsShort')}
           </span>
         </div>
@@ -63,27 +69,27 @@ export default async function SiteFooter({ session }: Props) {
 
         <div>
           <p className={heading}>{tfoot('contact')}</p>
-          <ul className="mt-4 space-y-2.5 text-sm text-ink-soft">
+          <ul className="mt-4 space-y-2.5 text-sm text-white/70">
             <li className="flex items-start gap-2">
-              <MapPinIcon size={15} className="mt-0.5 shrink-0 text-honey-deep" aria-hidden="true" />
+              <MapPinIcon size={15} className="mt-0.5 shrink-0 text-brand-leaf" aria-hidden="true" />
               {tfoot('address')}
             </li>
             <li className="flex items-start gap-2">
-              <MailIcon size={15} className="mt-0.5 shrink-0 text-honey-deep" aria-hidden="true" />
+              <MailIcon size={15} className="mt-0.5 shrink-0 text-brand-leaf" aria-hidden="true" />
               <span className="font-mono text-xs">{tfoot('email')}</span>
             </li>
             <li className="flex items-start gap-2">
-              <PhoneIcon size={15} className="mt-0.5 shrink-0 text-honey-deep" aria-hidden="true" />
+              <PhoneIcon size={15} className="mt-0.5 shrink-0 text-brand-leaf" aria-hidden="true" />
               <span className="font-mono text-xs">{tfoot('phone')}</span>
             </li>
           </ul>
         </div>
       </div>
 
-      <div className="border-t border-line">
+      <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-          <p className="text-xs text-ink-soft">{tfoot('rights', { year: new Date().getFullYear() })}</p>
-          <p className="text-xs text-ink-soft">{tfoot('partner')}</p>
+          <p className="text-xs text-white/50">{tfoot('rights', { year: new Date().getFullYear() })}</p>
+          <p className="text-xs text-white/50">{tfoot('partner')}</p>
         </div>
       </div>
     </footer>

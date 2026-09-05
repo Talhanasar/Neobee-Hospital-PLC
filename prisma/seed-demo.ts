@@ -1,8 +1,9 @@
-// Demo seed — creates the two demo auth users + DB rows used by the
-// one-click demo-login affordance. Idempotent: safe to re-run.
+// Demo seed — creates the demo auth users + DB rows used by the one-click
+// demo-login affordance: 1 admin, 2 investors (instant-pay + kisti-in-progress),
+// 1 pending share request, and interest leads. Idempotent: safe to re-run.
 //
-// Run via `pnpm db:seed` (chained after prisma/seed.ts) or standalone:
-//   npx tsx prisma/seed-demo.ts
+// Self-sufficient: upserts every Setting, so it can run alone on a fresh
+// database (`npx tsx prisma/seed-demo.ts`) as well as after prisma/seed.ts.
 //
 // Respects the same SEED_ALLOW production gate as seed.ts.
 
@@ -10,12 +11,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../lib/generated/prisma/client';
 import type { TransactionClient } from '../lib/generated/prisma/internal/prismaNamespace';
 // Relative import is deliberate here because tsx does not resolve the @/ alias in this standalone script.
-import {
-  DEFAULT_SETTINGS,
-  calculateAmount,
-  deriveCategory,
-} from '../lib/money';
-import { DEMO_INVESTOR, DEMO_ADMIN } from '../lib/demo-users';
+import { DEFAULT_SETTINGS, calculateAmount, deriveCategory } from '../lib/money';
+import { DEMO_INVESTOR, DEMO_INVESTOR_KISTI, DEMO_ADMIN } from '../lib/demo-users';
+import { hashPassword } from '../lib/auth-own/password';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const allowSeed = process.env.SEED_ALLOW === 'true';
@@ -23,34 +21,11 @@ const allowSeed = process.env.SEED_ALLOW === 'true';
 // ── Cleanup mode ─────────────────────────────────────────────────
 // `npx tsx prisma/seed-demo.ts --cleanup` removes every demo-marked row
 // (phones +88017900000*, UIDs NEO-90*, @neobee.test emails/staff) and the
-// two demo auth users from hosted Supabase. Tolerant: missing rows are fine.
+// demo auth users. Tolerant: missing rows are fine.
 if (process.argv.includes('--cleanup')) {
   void cleanup().then(() => process.exit(0));
 } else {
   void main();
-}
-
-async function deleteDemoAuthUsers(): Promise<void> {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!serviceRoleKey || !supabaseUrl) {
-    console.warn('Cleanup: skipping auth-user deletion (no service key/URL).');
-    return;
-  }
-  const { createClient } = await import('@supabase/supabase-js');
-  const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const demoEmails: string[] = [DEMO_INVESTOR.email, DEMO_ADMIN.email];
-  const { data: list, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-  if (error) {
-    console.warn(`Cleanup: could not list auth users: ${error.message}`);
-    return;
-  }
-  for (const user of list.users) {
-    if (user.email && demoEmails.includes(user.email.toLowerCase())) {
-      const { error: delError } = await admin.auth.admin.deleteUser(user.id);
-      console.log(`Cleanup: auth user ${user.email} ${delError ? `NOT deleted: ${delError.message}` : 'deleted'}.`);
-    }
-  }
 }
 
 async function cleanup(): Promise<void> {
@@ -64,21 +39,37 @@ async function cleanup(): Promise<void> {
       });
       const investorIds = demoInvestors.map((i) => i.id);
       const demoInvestments = await prisma.investment.findMany({
-        where: { OR: [{ uid: { startsWith: 'NEO-90' } }, { investorId: { in: investorIds } }] },
+        where: { OR: [{ uid: { startsWith: 'NHL-S-0090' } }, { uid: { startsWith: 'NEO-90' } }, { investorId: { in: investorIds } }] },
         select: { id: true },
       });
       const investmentIds = demoInvestments.map((i) => i.id);
+      const demoGroups = await prisma.paymentGroup.findMany({ where: { investorId: { in: investorIds } }, select: { id: true } });
+      const groupIds = demoGroups.map((g) => g.id);
+      await prisma.installmentSchedule.deleteMany({
+        where: { OR: [{ paymentGroupId: { in: groupIds } }, { investmentId: { in: investmentIds } }] },
+      });
+      const deletedCertificates = await prisma.certificate.deleteMany({ where: { investmentId: { in: investmentIds } } });
       const deletedTransactions = await prisma.transaction.deleteMany({ where: { investmentId: { in: investmentIds } } });
       const deletedRequests = await prisma.investmentRequest.deleteMany({
         where: { OR: [{ investorId: { in: investorIds } }, { targetInvestmentId: { in: investmentIds } }] },
       });
       const deletedInvestments = await prisma.investment.deleteMany({ where: { id: { in: investmentIds } } });
+      const deletedGroups = await prisma.paymentGroup.deleteMany({ where: { id: { in: groupIds } } });
       const deletedInvestors = await prisma.investor.deleteMany({ where: { id: { in: investorIds } } });
       const deletedStaff = await prisma.staff.deleteMany({ where: { email: 'demo-admin@neobee.test' } });
       const deletedLeads = await prisma.lead.deleteMany({ where: { ref: { startsWith: 'NB-LEAD-' } } });
+      const deletedAuthUsers = await prisma.authUser.deleteMany({
+        where: {
+          email: {
+            in: [DEMO_INVESTOR.email.toLowerCase(), DEMO_INVESTOR_KISTI.email.toLowerCase(), DEMO_ADMIN.email.toLowerCase()],
+          },
+        },
+      });
       console.log(
         `Cleanup: removed ${deletedTransactions.count} transactions, ${deletedRequests.count} requests, ` +
-          `${deletedInvestments.count} investments, ${deletedInvestors.count} investors, ${deletedStaff.count} demo staff row, ${deletedLeads.count} leads.`,
+          `${deletedCertificates.count} certificates, ${deletedInvestments.count} investments, ` +
+          `${deletedGroups.count} payment groups, ${deletedInvestors.count} investors, ${deletedStaff.count} demo staff row, ` +
+          `${deletedLeads.count} leads, ${deletedAuthUsers.count} auth users.`,
       );
     } catch (error) {
       console.warn(`Cleanup: DB cleanup failed (tolerated): ${error instanceof Error ? error.message : error}`);
@@ -88,7 +79,6 @@ async function cleanup(): Promise<void> {
   } else {
     console.warn('Cleanup: no DATABASE_URL — skipping DB rows.');
   }
-  await deleteDemoAuthUsers();
 }
 
 if (isProduction && !allowSeed) {
@@ -96,137 +86,46 @@ if (isProduction && !allowSeed) {
   process.exit(1);
 }
 
-// Fixed UIDs far from the real sequence range (seed.ts consumes nextval starting at 1).
-const DEMO_INVESTOR_UID = 'NEO-9001';
-const DEMO_INVESTOR_UID_SEQUENCE = 9001;
-const DEMO_PENDING_UID = 'NEO-9002';
-const DEMO_PENDING_UID_SEQUENCE = 9002;
+// Fixed UIDs far from the real sequence range (the live investment_uid_seq
+// starts at 1), formatted exactly like the app generates them.
+const INSTANT_UID = 'NHL-S-009001';
+const INSTANT_UID_SEQUENCE = 9001;
+const KISTI_UID = 'NHL-S-009002';
+const KISTI_UID_SEQUENCE = 9002;
 
-const DEMO_CONFIRMED_CODE = 'NB-DEMOA';
-const DEMO_PENDING_CODE = 'NB-DEMOB';
+const INSTANT_CODE = 'NB-DEMOA';
+const KISTI_CODE = 'NB-DEMOB';
 
-// Extra walk-in shareholders so the admin register and stats look alive.
-// No auth users — these are staff-registered investors, exactly like reality.
-const EXTRA_SHAREHOLDERS = [
-  {
-    phone: '+8801790000011',
-    name: 'Kamrul Hasan',
-    nid: 'DEMO-NID-0011',
-    uid: 'NEO-9011',
-    uidSequence: 9011,
-    code: 'NB-DEMDCA',
-    shares: 100,
-    entrepreneur: true,
-    status: 'CONFIRMED' as const,
-    depositMethod: 'BANK_TRANSFER' as const,
-    depositRef: 'DEMO-003',
-  },
-  {
-    phone: '+8801790000012',
-    name: 'Nusrat Jahan',
-    nid: 'DEMO-NID-0012',
-    uid: 'NEO-9012',
-    uidSequence: 9012,
-    code: 'NB-DEMDDB',
-    shares: 25,
-    entrepreneur: false,
-    status: 'CONFIRMED' as const,
-    depositMethod: 'BANK_DEPOSIT' as const,
-    depositRef: 'DEMO-004',
-  },
-  {
-    phone: '+8801790000013',
-    name: 'Shahana Akter',
-    nid: 'DEMO-NID-0013',
-    uid: 'NEO-9013',
-    uidSequence: 9013,
-    code: 'NB-DEMDEC',
-    shares: 5,
-    entrepreneur: false,
-    status: 'PENDING' as const,
-    depositMethod: 'MOBILE_BANKING' as const,
-    depositRef: 'DEMO-005',
-  },
+// Kisti plan: 4 kistis of ৳50,000 (1 share × INSTALLMENT_UNIT_AMOUNT), due
+// every 6 months. Kisti 1 is already paid — the plan is "going on".
+const KISTI_UNIT_AMOUNT = DEFAULT_SETTINGS.INSTALLMENT_UNIT_AMOUNT;
+const KISTI_DUE_DATES = [
+  new Date('2026-09-20T00:00:00.000Z'),
+  new Date('2027-03-20T00:00:00.000Z'),
+  new Date('2027-09-20T00:00:00.000Z'),
+  new Date('2028-03-20T00:00:00.000Z'),
 ] as const;
 
 async function ensureAuthUser(
-  admin: Awaited<ReturnType<typeof import('../lib/supabase/admin').createAdminClient>>,
+  tx: TransactionClient,
   email: string,
   password: string,
-  name: string,
-  phone: string,
-): Promise<string | null> {
-  // Email-based reuse detection: supabase-js v2.112.3 admin API has no getUserByEmail,
-  // so reuse is detected by scanning listUsers for a matching email. The project has
-  // only a handful of users, so a single page at perPage:200 is sufficient.
-  const findExistingByEmail = async (): Promise<{ id: string } | null> => {
-    const { data: list, error: listError } = await admin.auth.admin.listUsers({
-      page: 1,
-      perPage: 200,
-    });
-    if (listError) {
-      console.warn(`Could not list users to find existing demo user (${email}): ${listError.message}`);
-      return null;
-    }
-    return list.users.find((u) => u.email?.toLowerCase() === email.toLowerCase()) ?? null;
-  };
-
-  // Try create WITH phone first (so the profile carries it if the project later enables
-  // phone). Some projects reject phone on create when the phone provider is disabled —
-  // on that specific error, retry with email-only attributes.
-  const tryCreate = async (withPhone: boolean) => {
-    const attrs: Record<string, unknown> = {
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { name, phone },
-    };
-    if (withPhone) {
-      attrs.phone = phone;
-      attrs.phone_confirm = true;
-    }
-    return admin.auth.admin.createUser(attrs as Parameters<typeof admin.auth.admin.createUser>[0]);
-  };
-
-  // 1) Attempt create WITH phone.
-  let createResult = await tryCreate(true);
-  let createError = createResult.error;
-
-  // 2) If the phone fields were rejected, retry WITHOUT phone (email-only).
-  if (createError && /phone|provider|disabled/i.test(createError.message)) {
-    console.warn(`createUser with phone rejected for ${email} (likely phone provider disabled); retrying email-only: ${createError.message}`);
-    createResult = await tryCreate(false);
-    createError = createResult.error;
-  }
-
-  if (createError) {
-    // 422 / "already exists" → reuse the existing user by email.
-    if (createError.status === 422 || /already.*registered|already.*exists|user.*already/i.test(createError.message)) {
-      const existing = await findExistingByEmail();
-      if (existing) {
-        // Reset password so stale passwords can't break the demo after a re-run.
-        const { error: updateError } = await admin.auth.admin.updateUserById(existing.id, { password });
-        if (updateError) {
-          console.warn(`Found existing user for ${email} but failed to reset password: ${updateError.message}`);
-        }
-        console.log(`Reusing existing Supabase auth user for ${email} (${name}).`);
-        return existing.id;
-      }
-      console.warn(`Existing user reported for ${email} but not found in listUsers.`);
-      return null;
-    }
-    console.warn(`Failed to create Supabase auth user for ${email} (${name}): ${createError.message}`);
-    return null;
-  }
-
-  if (createResult.data && createResult.data.user) {
-    console.log(`Created Supabase auth user for ${email} (${name}).`);
-    return createResult.data.user.id;
-  }
-
-  // Never report success without a returned user object.
-  console.warn(`SEED FAILURE: could not create auth user for ${email}: no user object returned.`);
-  return null;
+  role: 'INVESTOR' | 'ADMIN',
+): Promise<string> {
+  const passwordHash = await hashPassword(password);
+  const normEmail = email.toLowerCase();
+  const user = await tx.authUser.upsert({
+    where: { email: normEmail },
+    update: { passwordHash, role, emailVerifiedAt: new Date() },
+    create: {
+      email: normEmail,
+      passwordHash,
+      role,
+      emailVerifiedAt: new Date(),
+    },
+    select: { id: true },
+  });
+  return user.id;
 }
 
 async function main() {
@@ -235,37 +134,16 @@ async function main() {
     throw new Error('Missing required environment variable: DATABASE_URL');
   }
 
-  // --- Supabase auth users (optional: skip gracefully if no service key) ---
-  let investorAuthUserId: string | null = null;
-  let adminAuthUserId: string | null = null;
-  let adminClient: Awaited<ReturnType<typeof import('../lib/supabase/admin').createAdminClient>> | null = null;
-
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey) {
-    console.warn(
-      'SUPABASE_SERVICE_ROLE_KEY is not set — skipping Supabase auth-user creation. ' +
-        'Demo login will not work until re-run with the key. DB rows will still be created.',
-    );
-  } else {
-    const { createAdminClient } = await import('../lib/supabase/admin');
-    adminClient = await createAdminClient();
-    investorAuthUserId = await ensureAuthUser(adminClient, DEMO_INVESTOR.email, DEMO_INVESTOR.password, DEMO_INVESTOR.name, DEMO_INVESTOR.phone);
-    adminAuthUserId = await ensureAuthUser(adminClient, DEMO_ADMIN.email, DEMO_ADMIN.password, DEMO_ADMIN.name, DEMO_ADMIN.phone);
-  }
-
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
 
   try {
     await prisma.$transaction(async (tx: TransactionClient) => {
       const sharePrice = DEFAULT_SETTINGS.SHARE_PRICE;
       const incentivePerShare = DEFAULT_SETTINGS.INCENTIVE_PER_SHARE;
+      const recentDate = new Date('2026-08-20T10:00:00.000Z');
 
-      // --- Settings (reuse the same keys seed.ts upserts; do not duplicate) ---
-      const settingRows = [
-        ['SHARE_PRICE', sharePrice],
-        ['INCENTIVE_PER_SHARE', incentivePerShare],
-      ] as const;
-      for (const [key, value] of settingRows) {
+      // --- Settings — all nine, so this seed alone fully equips a fresh DB ---
+      for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
         await tx.setting.upsert({
           where: { key },
           update: { value: BigInt(value) },
@@ -273,9 +151,12 @@ async function main() {
         });
       }
 
-      // --- Demo admin staff row (upsert by the stable unique email so a stale
-      // authUserId on the existing row never blocks the overwrite; authUserId is
-      // always overwritten with the real Supabase user id when known) ---
+      // --- Own-auth AuthUser rows ---
+      const adminAuthUserId = await ensureAuthUser(tx, DEMO_ADMIN.email, DEMO_ADMIN.password, 'ADMIN');
+      const investorAuthUserId = await ensureAuthUser(tx, DEMO_INVESTOR.email, DEMO_INVESTOR.password, 'INVESTOR');
+      const kistiAuthUserId = await ensureAuthUser(tx, DEMO_INVESTOR_KISTI.email, DEMO_INVESTOR_KISTI.password, 'INVESTOR');
+
+      // --- Demo admin staff row ---
       const demoAdmin = await tx.staff.upsert({
         where: { email: 'demo-admin@neobee.test' },
         update: {
@@ -283,10 +164,10 @@ async function main() {
           email: 'demo-admin@neobee.test',
           role: 'ADMIN',
           isActive: true,
-          ...(adminAuthUserId ? { authUserId: adminAuthUserId } : {}),
+          authUserId: adminAuthUserId,
         },
         create: {
-          authUserId: adminAuthUserId ?? 'demo-admin-authuser-pending',
+          authUserId: adminAuthUserId,
           name: DEMO_ADMIN.name,
           email: 'demo-admin@neobee.test',
           role: 'ADMIN',
@@ -294,268 +175,280 @@ async function main() {
         },
       });
 
-      // If the real auth user id arrived late, link it now.
-      if (adminAuthUserId && demoAdmin.authUserId !== adminAuthUserId) {
+      if (demoAdmin.authUserId !== adminAuthUserId) {
         await tx.staff.update({
           where: { id: demoAdmin.id },
           data: { authUserId: adminAuthUserId },
         });
       }
 
-      // --- Demo investor row (upsert by the stable unique phone; authUserId is
-      // always overwritten with the real Supabase user id so stale/non-existent
-      // ids on the existing row are corrected on every re-run) ---
-      const demoInvestor = await tx.investor.upsert({
+      // --- Investor A: Rahim Uddin — 1 share, instant (full) payment, fully paid ---
+      const instantInvestor = await tx.investor.upsert({
         where: { phone: DEMO_INVESTOR.phone },
         update: {
           name: DEMO_INVESTOR.name,
-          email: 'demo-investor@neobee.test',
-          ...(investorAuthUserId ? { authUserId: investorAuthUserId } : {}),
+          email: DEMO_INVESTOR.email,
+          authUserId: investorAuthUserId,
         },
         create: {
           phone: DEMO_INVESTOR.phone,
           name: DEMO_INVESTOR.name,
-          email: 'demo-investor@neobee.test',
+          email: DEMO_INVESTOR.email,
           nationalIdNumber: 'DEMO-NID-0001',
-          authUserId: investorAuthUserId ?? 'demo-investor-authuser-pending',
+          authUserId: investorAuthUserId,
+          approvalStatus: 'APPROVED',
         },
       });
 
-      // Link the investor's authUserId if it was pending and the real id arrived.
-      if (investorAuthUserId && demoInvestor.authUserId !== investorAuthUserId) {
+      if (instantInvestor.authUserId !== investorAuthUserId) {
         await tx.investor.update({
-          where: { id: demoInvestor.id },
+          where: { id: instantInvestor.id },
           data: { authUserId: investorAuthUserId },
         });
       }
 
-      // --- Two demo investments (idempotent by uid) ---
-      const recentDate = new Date('2026-08-20T10:00:00.000Z');
-
-      // (a) CONFIRMED: 40 shares → PREMIUM, ৳80,00,000, investor-confirmed.
-      const confirmedShares = 40;
-      const confirmedCategory = deriveCategory(confirmedShares);
-      const confirmedAmount = calculateAmount(confirmedShares, sharePrice);
-      const confirmedInvestment = await tx.investment.upsert({
-        where: { uid: DEMO_INVESTOR_UID },
+      const instantShares = 1;
+      const instantAmount = calculateAmount(instantShares, sharePrice);
+      const fullyPaidAt = new Date('2026-08-20T12:00:00.000Z');
+      const instantInvestment = await tx.investment.upsert({
+        where: { uid: INSTANT_UID },
         update: {
-          investorId: demoInvestor.id,
-          shares: confirmedShares,
-          category: confirmedCategory,
+          investorId: instantInvestor.id,
+          shares: instantShares,
+          category: deriveCategory(instantShares),
           isEntrepreneur: false,
           incentiveAmount: 0,
           sharePrice,
           incentivePerShare,
-          amount: confirmedAmount,
+          amount: instantAmount,
           depositMethod: 'BANK_TRANSFER',
           depositRef: 'DEMO-001',
           depositDate: recentDate,
           status: 'CONFIRMED',
-          confirmedAt: new Date('2026-08-20T12:00:00.000Z'),
-          confirmedByInvestorId: demoInvestor.id,
-          notes: 'Demo confirmed investment',
+          confirmedAt: fullyPaidAt,
+          confirmedByInvestorId: instantInvestor.id,
+          fullyPaidAt,
+          notes: 'Demo instant-pay investment (fully paid)',
           recordedByStaffId: demoAdmin.id,
         },
         create: {
-          investorId: demoInvestor.id,
-          uid: DEMO_INVESTOR_UID,
-          uidSequence: DEMO_INVESTOR_UID_SEQUENCE,
-          code: DEMO_CONFIRMED_CODE,
-          shares: confirmedShares,
-          category: confirmedCategory,
+          investorId: instantInvestor.id,
+          uid: INSTANT_UID,
+          uidSequence: INSTANT_UID_SEQUENCE,
+          code: INSTANT_CODE,
+          shares: instantShares,
+          category: deriveCategory(instantShares),
           isEntrepreneur: false,
           incentiveAmount: 0,
           sharePrice,
           incentivePerShare,
-          amount: confirmedAmount,
+          amount: instantAmount,
           depositMethod: 'BANK_TRANSFER',
           depositRef: 'DEMO-001',
           depositDate: recentDate,
           status: 'CONFIRMED',
-          confirmedAt: new Date('2026-08-20T12:00:00.000Z'),
-          confirmedByInvestorId: demoInvestor.id,
-          notes: 'Demo confirmed investment',
+          confirmedAt: fullyPaidAt,
+          confirmedByInvestorId: instantInvestor.id,
+          fullyPaidAt,
+          notes: 'Demo instant-pay investment (fully paid)',
           recordedByStaffId: demoAdmin.id,
         },
       });
 
-      // Ledger row for the confirmed investment (match seed.ts pattern: DEPOSIT row, admin-recorded).
-      const existingConfirmedTx = await tx.transaction.findFirst({
-        where: { investmentId: confirmedInvestment.id, type: 'DEPOSIT' },
+      const existingInstantTx = await tx.transaction.findFirst({
+        where: { investmentId: instantInvestment.id, type: 'DEPOSIT' },
         select: { id: true },
       });
-      if (!existingConfirmedTx) {
+      if (!existingInstantTx) {
         await tx.transaction.create({
           data: {
-            investmentId: confirmedInvestment.id,
-            amount: confirmedAmount,
+            investmentId: instantInvestment.id,
+            amount: instantAmount,
             type: 'DEPOSIT',
+            depositMethod: 'BANK_TRANSFER',
+            depositDate: recentDate,
             recordedByStaffId: demoAdmin.id,
             note: 'Demo seeded deposit ledger row',
           },
         });
       }
 
-      // (b) PENDING: 20 shares → PREMIUM, ৳40,00,000, awaiting investor confirmation.
-      const pendingShares = 20;
-      const pendingCategory = deriveCategory(pendingShares);
-      const pendingAmount = calculateAmount(pendingShares, sharePrice);
-      const pendingInvestment = await tx.investment.upsert({
-        where: { uid: DEMO_PENDING_UID },
+      // Certificate exists only for the fully-paid holding.
+      await tx.certificate.upsert({
+        where: { investmentId: instantInvestment.id },
+        update: {},
+        create: { investmentId: instantInvestment.id },
+      });
+
+      // --- Investor B: Sultana Begum — 1 share on a kisti plan, in progress ---
+      const kistiInvestor = await tx.investor.upsert({
+        where: { phone: DEMO_INVESTOR_KISTI.phone },
         update: {
-          investorId: demoInvestor.id,
-          shares: pendingShares,
-          category: pendingCategory,
-          isEntrepreneur: false,
-          incentiveAmount: 0,
-          sharePrice,
-          incentivePerShare,
-          amount: pendingAmount,
-          depositMethod: 'BANK_TRANSFER',
-          depositRef: 'DEMO-002',
-          depositDate: recentDate,
-          status: 'PENDING',
-          confirmedAt: null,
-          confirmedByInvestorId: null,
-          notes: 'Demo pending investment',
-          recordedByStaffId: demoAdmin.id,
+          name: DEMO_INVESTOR_KISTI.name,
+          email: DEMO_INVESTOR_KISTI.email,
+          authUserId: kistiAuthUserId,
         },
         create: {
-          investorId: demoInvestor.id,
-          uid: DEMO_PENDING_UID,
-          uidSequence: DEMO_PENDING_UID_SEQUENCE,
-          code: DEMO_PENDING_CODE,
-          shares: pendingShares,
-          category: pendingCategory,
-          isEntrepreneur: false,
-          incentiveAmount: 0,
-          sharePrice,
-          incentivePerShare,
-          amount: pendingAmount,
-          depositMethod: 'BANK_TRANSFER',
-          depositRef: 'DEMO-002',
-          depositDate: recentDate,
-          status: 'PENDING',
-          confirmedAt: null,
-          confirmedByInvestorId: null,
-          notes: 'Demo pending investment',
-          recordedByStaffId: demoAdmin.id,
+          phone: DEMO_INVESTOR_KISTI.phone,
+          name: DEMO_INVESTOR_KISTI.name,
+          email: DEMO_INVESTOR_KISTI.email,
+          nationalIdNumber: 'DEMO-NID-0002',
+          authUserId: kistiAuthUserId,
+          approvalStatus: 'APPROVED',
         },
       });
 
-      const existingPendingTx = await tx.transaction.findFirst({
-        where: { investmentId: pendingInvestment.id, type: 'DEPOSIT' },
-        select: { id: true },
-      });
-      if (!existingPendingTx) {
-        await tx.transaction.create({
-          data: {
-            investmentId: pendingInvestment.id,
-            amount: pendingAmount,
-            type: 'DEPOSIT',
-            recordedByStaffId: demoAdmin.id,
-            note: 'Demo seeded deposit ledger row',
-          },
+      if (kistiInvestor.authUserId !== kistiAuthUserId) {
+        await tx.investor.update({
+          where: { id: kistiInvestor.id },
+          data: { authUserId: kistiAuthUserId },
         });
       }
 
-      // (c) Extra walk-in shareholders — admin register + stats richness.
-      for (const person of EXTRA_SHAREHOLDERS) {
-        const extraInvestor = await tx.investor.upsert({
-          where: { phone: person.phone },
-          update: { name: person.name },
-          create: {
-            phone: person.phone,
-            name: person.name,
-            nationalIdNumber: person.nid,
-            authUserId: null, // staff-registered walk-in — no account yet
-          },
-        });
-        const category = deriveCategory(person.shares);
-        const amount = calculateAmount(person.shares, sharePrice);
-        const incentiveAmount = person.entrepreneur ? person.shares * incentivePerShare : 0;
-        const investment = await tx.investment.upsert({
-          where: { uid: person.uid },
+      const kistiAmount = calculateAmount(1, sharePrice);
+      const kistiInvestment = await tx.investment.upsert({
+        where: { uid: KISTI_UID },
+        update: {
+          investorId: kistiInvestor.id,
+          shares: 1,
+          category: deriveCategory(1),
+          isEntrepreneur: false,
+          incentiveAmount: 0,
+          sharePrice,
+          incentivePerShare,
+          amount: kistiAmount,
+          paymentPlan: 'INSTALLMENT',
+          depositMethod: 'MOBILE_BANKING',
+          depositRef: 'DEMO-002',
+          depositDate: recentDate,
+          status: 'PENDING',
+          confirmedAt: null,
+          confirmedByInvestorId: null,
+          fullyPaidAt: null,
+          notes: 'Demo kisti investment (in progress)',
+          recordedByStaffId: demoAdmin.id,
+        },
+        create: {
+          investorId: kistiInvestor.id,
+          uid: KISTI_UID,
+          uidSequence: KISTI_UID_SEQUENCE,
+          code: KISTI_CODE,
+          shares: 1,
+          category: deriveCategory(1),
+          isEntrepreneur: false,
+          incentiveAmount: 0,
+          sharePrice,
+          incentivePerShare,
+          amount: kistiAmount,
+          paymentPlan: 'INSTALLMENT',
+          depositMethod: 'MOBILE_BANKING',
+          depositRef: 'DEMO-002',
+          depositDate: recentDate,
+          status: 'PENDING',
+          notes: 'Demo kisti investment (in progress)',
+          recordedByStaffId: demoAdmin.id,
+        },
+      });
+
+      // Kisti agreement (NHL-K group) covering the share.
+      const kistiGroup = await tx.paymentGroup.upsert({
+        where: { ref: 'NHL-K-000001' },
+        update: {
+          investorId: kistiInvestor.id,
+          kind: 'KISTI',
+          shareCount: 1,
+          totalAmount: kistiAmount,
+        },
+        create: {
+          ref: 'NHL-K-000001',
+          refSequence: 1,
+          investorId: kistiInvestor.id,
+          kind: 'KISTI',
+          shareCount: 1,
+          totalAmount: kistiAmount,
+        },
+      });
+
+      await tx.investment.update({
+        where: { id: kistiInvestment.id },
+        data: { paymentGroupId: kistiGroup.id },
+      });
+
+      // Four kisti schedules; kisti 1 is PAID (ledger row linked), 2–4 SCHEDULED.
+      // Rows carry both the owning investment and the NHL-K group, matching
+      // createInvestmentRecord's convention for kisti agreements.
+      for (let installmentNo = 1; installmentNo <= 4; installmentNo += 1) {
+        const paid = installmentNo === 1;
+        await tx.installmentSchedule.upsert({
+          where: { paymentGroupId_installmentNo: { paymentGroupId: kistiGroup.id, installmentNo } },
           update: {
-            investorId: extraInvestor.id,
-            shares: person.shares,
-            category,
-            isEntrepreneur: person.entrepreneur,
-            incentiveAmount,
-            sharePrice,
-            incentivePerShare,
-            amount,
-            depositMethod: person.depositMethod,
-            depositRef: person.depositRef,
-            depositDate: recentDate,
-            status: person.status,
-            recordedByStaffId: demoAdmin.id,
+            investmentId: kistiInvestment.id,
+            amount: KISTI_UNIT_AMOUNT,
+            dueDate: KISTI_DUE_DATES[installmentNo - 1],
+            status: paid ? 'PAID' : 'SCHEDULED',
           },
           create: {
-            investorId: extraInvestor.id,
-            uid: person.uid,
-            uidSequence: person.uidSequence,
-            code: person.code,
-            shares: person.shares,
-            category,
-            isEntrepreneur: person.entrepreneur,
-            incentiveAmount,
-            sharePrice,
-            incentivePerShare,
-            amount,
-            depositMethod: person.depositMethod,
-            depositRef: person.depositRef,
-            depositDate: recentDate,
-            status: person.status,
-            notes: 'Demo seeded shareholder',
-            recordedByStaffId: demoAdmin.id,
+            investmentId: kistiInvestment.id,
+            paymentGroupId: kistiGroup.id,
+            installmentNo,
+            dueDate: KISTI_DUE_DATES[installmentNo - 1],
+            amount: KISTI_UNIT_AMOUNT,
+            status: paid ? 'PAID' : 'SCHEDULED',
           },
         });
-        const existingExtraTx = await tx.transaction.findFirst({
-          where: { investmentId: investment.id, type: 'DEPOSIT' },
-          select: { id: true },
-        });
-        if (!existingExtraTx) {
-          await tx.transaction.create({
-            data: {
-              investmentId: investment.id,
-              amount,
-              type: 'DEPOSIT',
-              recordedByStaffId: demoAdmin.id,
-              note: 'Demo seeded deposit ledger row',
-            },
-          });
-        }
       }
 
-      // (d) One SUBMITTED payment report from the demo investor — populates
-      // "Your requests" in the portal and the staff approval queue.
-      const existingPaymentRequest = await tx.investmentRequest.findFirst({
-        where: { investorId: demoInvestor.id, kind: 'PAYMENT', status: 'SUBMITTED' },
+      const paidSchedule = await tx.installmentSchedule.findFirst({
+        where: { paymentGroupId: kistiGroup.id, installmentNo: 1 },
         select: { id: true },
       });
-      if (!existingPaymentRequest) {
+      const existingKistiTx = await tx.transaction.findFirst({
+        where: { investmentId: kistiInvestment.id, type: 'DEPOSIT' },
+        select: { id: true },
+      });
+      if (!existingKistiTx) {
+        await tx.transaction.create({
+          data: {
+            investmentId: kistiInvestment.id,
+            amount: KISTI_UNIT_AMOUNT,
+            type: 'DEPOSIT',
+            depositMethod: 'MOBILE_BANKING',
+            depositDate: new Date('2026-09-18T10:00:00.000Z'),
+            installmentScheduleId: paidSchedule?.id ?? null,
+            recordedByStaffId: demoAdmin.id,
+            note: 'Kisti 1 paid via bKash — demo ledger row',
+          },
+        });
+      }
+
+      // --- One SUBMITTED share request from investor A — populates the
+      // admin approval queue and the portal "Your requests" list. ---
+      const existingShareRequest = await tx.investmentRequest.findFirst({
+        where: { investorId: instantInvestor.id, kind: 'SHARE_PURCHASE', status: 'SUBMITTED' },
+        select: { id: true },
+      });
+      if (!existingShareRequest) {
         await tx.investmentRequest.create({
           data: {
-            investorId: demoInvestor.id,
-            kind: 'PAYMENT',
-            targetInvestmentId: confirmedInvestment.id,
-            shares: 0,
+            investorId: instantInvestor.id,
+            kind: 'SHARE_PURCHASE',
+            shares: 2,
             entrepreneurRequested: false,
+            paymentPlan: 'FULL',
             sharePrice,
             incentivePerShare,
-            amount: 500000,
-            depositMethod: 'MOBILE_BANKING',
-            depositRef: 'BKX-DEMO-7788',
-            depositDate: new Date('2026-08-26T10:00:00.000Z'),
-            note: 'Installment no. 2 paid via bKTransaction — reference BKX-DEMO-7788',
+            amount: 380000, // 2 × (৳2,00,000 − ৳10,000 full-payment discount)
+            depositMethod: 'BANK_TRANSFER',
+            depositRef: 'BKX-DEMO-9001',
+            depositDate: new Date('2026-09-03T10:00:00.000Z'),
+            note: 'Requesting 2 additional shares — full payment, reference BKX-DEMO-9001',
             status: 'SUBMITTED',
           },
         });
       }
 
-      // (e) Interest leads — populate the admin leads pipeline and the
-      // sidebar "new leads" badge. Two NEW + one CONTACTED.
+      // --- Interest leads — populate the admin leads pipeline and the
+      // sidebar "new leads" badge. Two NEW + one CONTACTED. ---
       const DEMO_LEADS = [
         { ref: 'NB-LEAD-DEMO', name: 'Sabbir Ahmed', phone: '+8801811000111', email: 'sabbir.ahmed@example.com', message: 'Want to visit the site office and discuss founding-entrepreneur entry.', status: 'NEW' as const },
         { ref: 'NB-LEAD-K9LM', name: 'Farhana Yasmin', phone: '+8801933000222', email: 'farhana.y@example.com', message: 'Interested in a 5-share premium entry. Please call after 5pm.', status: 'NEW' as const },
@@ -575,45 +468,11 @@ async function main() {
       }
 
       console.log(
-        'Demo seed complete: 1 admin staff, 4 investors (1 demo + 3 walk-ins), 5 investments, ledger rows, 1 payment request, 3 interest leads. ' +
-          (investorAuthUserId ? 'Auth users created.' : 'Auth users SKIPPED (no service key).'),
+        'Demo seed complete: 1 admin, 2 investors (instant-pay + kisti in progress), 2 investments, ' +
+          '1 kisti agreement with 4 schedules (1 paid), 1 pending share request, 3 interest leads. ' +
+          'Auth users created directly in database.',
       );
     });
-
-    // --- Final verification: re-confirm BOTH auth users exist (by id) and print
-    // a final line listing exactly which accounts exist, by email (never ids).
-    // If either is missing → exit 1 so CI surfaces the failure. ---
-    if (adminClient && serviceRoleKey) {
-      const verify = async (id: string | null, email: string, label: string): Promise<boolean> => {
-        if (!id) return false;
-        const { data, error } = await adminClient!.auth.admin.getUserById(id);
-        if (error || !data.user) {
-          console.error(`SEED FAILURE: verified auth user for ${email} (${label}) is missing: ${error ? error.message : 'no user'}`);
-          return false;
-        }
-        return true;
-      };
-
-      const investorOk = await verify(investorAuthUserId, DEMO_INVESTOR.email, 'investor');
-      const adminOk = await verify(adminAuthUserId, DEMO_ADMIN.email, 'admin');
-
-      const existingEmails: string[] = [];
-      const { data: list, error: listError } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 200 });
-      if (listError) {
-        console.error('SEED FAILURE: could not list users for final verification:', listError.message);
-      } else {
-        for (const u of list.users) {
-          if (u.email) existingEmails.push(u.email);
-        }
-      }
-
-      console.log(`Verified auth users: investor=${investorOk ? 'present' : 'MISSING'} (${DEMO_INVESTOR.email}), admin=${adminOk ? 'present' : 'MISSING'} (${DEMO_ADMIN.email}).`);
-      console.log(`Auth accounts present: ${existingEmails.length ? existingEmails.join(', ') : 'none'}`);
-
-      if (!investorOk || !adminOk) {
-        process.exit(1);
-      }
-    }
   } catch (error) {
     console.error('Demo seed failed:', error);
     process.exitCode = 1;

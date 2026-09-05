@@ -31,7 +31,6 @@ export default async function AboutPage({
   const leaders = [
     { name: t('contact1Name'), role: t('contact1Role'), initials: 'JA' },
     { name: t('contact2Name'), role: t('contact2Role'), initials: 'MR' },
-    { name: t('contact3Name'), role: t('contact3Role'), initials: 'JU' },
   ];
   const values = [
     { title: t('value1Title'), body: t('value1Text') },
@@ -118,9 +117,9 @@ export default async function AboutPage({
       <section id="about-leadership" aria-label={t('leadKicker')} className="scroll-mt-20 border-t border-line">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
           <SectionHead align="center" kicker={t('leadKicker')} title={t('leadTitle')} />
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+          <div className="mt-10 flex flex-wrap justify-center gap-6">
             {leaders.map((l, i) => (
-              <Reveal key={l.name} delay={i * 90} className="h-full">
+              <Reveal key={l.name} delay={i * 90} className="w-full sm:w-80 h-full">
                 <div className="nb-card h-full p-5">
                   <HexAvatar initials={l.initials} className="h-14 w-16 text-base" />
                   <h3 className="mt-4 font-semibold text-ink">{l.name}</h3>

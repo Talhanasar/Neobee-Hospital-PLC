@@ -3,8 +3,10 @@
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/navigation';
+import { isDemoClient } from '@/data/demo/client';
 import { signOutAction } from '@/app/[locale]/(auth)/login/actions';
-import { HexAvatar, HexLogo } from '@/components/ui/bits';
+import { HexAvatar } from '@/components/ui/bits';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher';
 import {
   BadgeCheckIcon,
@@ -94,7 +96,7 @@ export default function DashboardShell({
           aria-label={navHomeLabel(commonT)}
           className="flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2"
         >
-          <HexLogo size={32} />
+          <BrandLogo size={32} />
           <span className="text-left leading-none">
             <span className="block font-display text-[15px] font-bold tracking-tight text-ink">{brandT('name')}</span>
             <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.24em] text-honey-deep">{brandT('suffix')}</span>
@@ -180,7 +182,7 @@ export default function DashboardShell({
             >
               <MenuIcon size={18} />
             </button>
-            <HexLogo size={26} />
+            <BrandLogo size={26} />
             <span className="font-display text-sm font-bold text-ink">{brandT('name')}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -198,7 +200,7 @@ export default function DashboardShell({
         <footer className="no-print mt-auto border-t border-line px-4 py-4 sm:px-6">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-xs text-ink-soft">
             <p>{commonT('rights', { year: String(new Date().getFullYear()) })}</p>
-            <p className="font-mono uppercase tracking-wider">{t('demoData')}</p>
+            {isDemoClient() ? <p className="font-mono uppercase tracking-wider">{t('demoData')}</p> : null}
           </div>
         </footer>
       </div>

@@ -70,6 +70,7 @@ export async function getReceiptData(investmentId: string, opts?: { installmentN
       status: true,
       createdAt: true,
       paymentPlan: true,
+      paymentGroup: { select: { ref: true, kind: true } },
     },
   });
   if (!row) return null;
@@ -128,6 +129,8 @@ export async function getReceiptData(investmentId: string, opts?: { installmentN
   const totalAmount = row.shares * row.sharePrice;
   const paidToDate = paidToDateAgg._sum.amount ?? 0;
 
+  const kistiBase = row.paymentGroup && row.paymentGroup.kind === 'KISTI' ? row.paymentGroup.ref : row.uid;
+
   return {
     uid: row.uid,
     code: row.code,
@@ -147,7 +150,7 @@ export async function getReceiptData(investmentId: string, opts?: { installmentN
     issuedAt: row.createdAt,
     paymentPlan: row.paymentPlan,
     installmentNo: schedule.installmentNo,
-    kistiRef: `${row.uid}-K${schedule.installmentNo}`,
+    kistiRef: `${kistiBase}-K${schedule.installmentNo}`,
     totalAmount,
     paidToDate,
   };
@@ -196,6 +199,7 @@ export async function listPaymentsForInvestment(investmentId: string): Promise<I
 export type AdminStats = {
   totalSubscribed: number;
   totalCount: number;
+  sharesTaken: number;
   confirmedAmount: number;
   confirmedCount: number;
   pendingAmount: number;
@@ -207,7 +211,7 @@ export type AdminStats = {
 export async function getAdminStats(): Promise<AdminStats> {
   if (isDemoData()) return demoGetAdminStats();
   const [total, confirmed, pending, incentivesDue, entrepreneurCount, pendingRequestCount] = await Promise.all([
-    prisma.investment.aggregate({ _sum: { amount: true }, _count: true }),
+    prisma.investment.aggregate({ _sum: { amount: true, shares: true }, _count: true }),
     prisma.investment.aggregate({ where: { status: 'CONFIRMED' }, _sum: { amount: true }, _count: true }),
     prisma.investment.aggregate({ where: { status: 'PENDING' }, _sum: { amount: true }, _count: true }),
     prisma.investment.aggregate({ _sum: { incentiveAmount: true } }),
@@ -217,6 +221,7 @@ export async function getAdminStats(): Promise<AdminStats> {
   return {
     totalSubscribed: total._sum.amount ?? 0,
     totalCount: total._count,
+    sharesTaken: total._sum.shares ?? 0,
     confirmedAmount: confirmed._sum.amount ?? 0,
     confirmedCount: confirmed._count,
     pendingAmount: pending._sum.amount ?? 0,
@@ -242,6 +247,8 @@ export type InvestmentListRow = {
   investorName: string;
   investorPhone: string;
   paymentPlan: 'FULL' | 'INSTALLMENT';
+  slipFileKey: string | null;
+  group: { ref: string; kind: 'INSTANT' | 'KISTI'; shareCount: number } | null;
   kistis: Array<{ installmentNo: number; dueDate: Date; amount: number; status: string }>;
 };
 export type InvestmentListResult = { items: InvestmentListRow[]; page: number; pageSize: number; total: number; totalPages: number };
@@ -279,6 +286,8 @@ export async function listInvestmentsPage(input: ListInvestmentsInput): Promise<
         depositDate: true,
         depositMethod: true,
         paymentPlan: true,
+        slipFileKey: true,
+        paymentGroup: { select: { ref: true, kind: true, shareCount: true } },
         installmentSchedules: {
           orderBy: { installmentNo: 'asc' as const },
           select: { installmentNo: true, dueDate: true, amount: true, status: true },
@@ -303,6 +312,10 @@ export async function listInvestmentsPage(input: ListInvestmentsInput): Promise<
       investorName: row.investor.name,
       investorPhone: row.investor.phone,
       paymentPlan: row.paymentPlan,
+      slipFileKey: row.slipFileKey,
+      group: row.paymentGroup
+        ? { ref: row.paymentGroup.ref, kind: row.paymentGroup.kind, shareCount: row.paymentGroup.shareCount }
+        : null,
       kistis: row.installmentSchedules,
     })),
     page: input.page,
@@ -316,6 +329,7 @@ export type PortalRow = {
   id: string;
   uid: string;
   code: string;
+  paymentGroup: { ref: string; kind: 'INSTANT' | 'KISTI'; shareCount: number } | null;
   category: InvestmentCategory;
   shares: number;
   amount: number;
@@ -351,6 +365,7 @@ export async function listInvestmentsForInvestor(investorId: string): Promise<Po
       paymentPlan: true,
       sharePrice: true,
       fullyPaidAt: true,
+      paymentGroup: { select: { ref: true, kind: true, shareCount: true } },
     },
   });
   return rows.map((row) => ({
@@ -361,7 +376,7 @@ export async function listInvestmentsForInvestor(investorId: string): Promise<Po
 
 export type PortalScheduleRow = {
   id: string;
-  investmentId: string;
+  investmentId: string | null;
   installmentNo: number;
   dueDate: Date;
   amount: number;
@@ -385,6 +400,7 @@ export async function listSchedulesForInvestor(investorId: string): Promise<Map<
   });
   const map = new Map<string, PortalScheduleRow[]>();
   for (const s of schedules) {
+    if (s.investmentId === null) continue; // group kistis are surfaced through their owning investment's schedule rows elsewhere
     const list = map.get(s.investmentId) ?? [];
     list.push(s);
     map.set(s.investmentId, list);
@@ -630,6 +646,7 @@ export type InvestorDetail = {
     depositMethod: 'BANK_DEPOSIT' | 'BANK_TRANSFER' | 'CHEQUE' | 'MOBILE_BANKING';
     fullyPaidAt: Date | null;
     certificateRef: string | null;
+    paymentGroup: { ref: string; kind: 'INSTANT' | 'KISTI'; shareCount: number } | null;
     kistis: Array<{ installmentNo: number; dueDate: Date; amount: number; status: string }>;
   }>;
   requests: Array<{
@@ -668,6 +685,7 @@ export async function getInvestorDetail(id: string): Promise<InvestorDetail | nu
           depositMethod: true,
           fullyPaidAt: true,
           certificate: { select: { id: true } },
+          paymentGroup: { select: { ref: true, kind: true, shareCount: true } },
           installmentSchedules: {
             orderBy: { installmentNo: 'asc' as const },
             select: { installmentNo: true, dueDate: true, amount: true, status: true },
@@ -710,6 +728,9 @@ export async function getInvestorDetail(id: string): Promise<InvestorDetail | nu
       depositMethod: i.depositMethod,
       fullyPaidAt: i.fullyPaidAt,
       certificateRef: i.certificate ? `${i.uid}-CERT` : null,
+      paymentGroup: i.paymentGroup
+        ? { ref: i.paymentGroup.ref, kind: i.paymentGroup.kind, shareCount: i.paymentGroup.shareCount }
+        : null,
       kistis: i.installmentSchedules,
     })),
     requests: row.requests,

@@ -2,8 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
-import { createClient } from '@/lib/supabase/server';
-import { storage } from '@/lib/storage';
+import { storage, extensionForContentType } from '@/lib/storage';
+import { getCurrentUser, signUpInvestor, sendVerificationOtp, verifyEmailOtp, signIn } from '@/lib/auth-own';
+import { sendOtpEmail } from '@/lib/auth-own/mailer';
 import { investorSignupSchema, validateSlipFile } from '@/lib/validation';
 import { submitInvestmentRequest } from '@/lib/requests';
 import { writeAuditLog, actionVerbs, getRequestMetadataFromHeaders } from '@/lib/audit';
@@ -25,9 +26,63 @@ function flattenFieldErrors(error: ZodError): Record<string, string[]> {
   return fieldErrors;
 }
 
+export async function sendRegistrationOtpAction(
+  email: string,
+  password?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return { ok: false, error: 'invalidEmail' };
+
+  if (password) {
+    const signupRes = await signUpInvestor(normalized, password);
+    if (!signupRes.ok) {
+      if (signupRes.error === 'emailTaken') {
+        const otpRes = await sendVerificationOtp(normalized);
+        const mailRes = await sendOtpEmail(normalized, otpRes.code, 'EMAIL_VERIFY');
+        if (!mailRes.ok) {
+          console.error('[register] OTP mail failed:', mailRes.error);
+          return { ok: false, error: 'otpSendFailed' };
+        }
+        return { ok: true };
+      }
+      return { ok: false, error: signupRes.error };
+    }
+    const mailRes = await sendOtpEmail(normalized, signupRes.code, 'EMAIL_VERIFY');
+    if (!mailRes.ok) {
+      console.error('[register] OTP mail failed:', mailRes.error);
+      return { ok: false, error: 'otpSendFailed' };
+    }
+    return { ok: true };
+  }
+
+  const otpRes = await sendVerificationOtp(normalized);
+  const mailRes = await sendOtpEmail(normalized, otpRes.code, 'EMAIL_VERIFY');
+  if (!mailRes.ok) {
+    console.error('[register] OTP mail failed:', mailRes.error);
+    return { ok: false, error: 'otpSendFailed' };
+  }
+  return { ok: true };
+}
+
+export async function verifyRegistrationOtpAction(
+  email: string,
+  code: string,
+  password?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const normalized = email.trim().toLowerCase();
+  const verifyRes = await verifyEmailOtp(normalized, code.trim());
+  if (!verifyRes.ok) {
+    return { ok: false, error: 'invalidOrExpiredOtp' };
+  }
+  if (password) {
+    await signIn(normalized, password);
+  }
+  return { ok: true };
+}
+
 /**
  * Final step of the registration wizard. The email OTP has already been
- * verified client-side (Supabase session exists); this action persists
+ * verified (own-auth session exists); this action persists
  * everything in one pass: link the Investor row to the auth user, upload
  * the deposit slip, and file the SHARE_PURCHASE request for staff review.
  * No money is recorded — approval is the staff's job (WP3 flow).
@@ -36,7 +91,7 @@ export async function investorSignupAction(
   _prevState: InvestorSignupState,
   formData: FormData,
 ): Promise<InvestorSignupState> {
-  // Demo mode: no Supabase session — validate + persist against the in-memory store.
+  // Demo mode: no database session — validate + persist against the in-memory store.
   if (isDemoData()) {
     const parsed = investorSignupSchema.safeParse({
       name: formData.get('name'),
@@ -79,13 +134,12 @@ export async function investorSignupAction(
     return { ok: true, requestId };
   }
 
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
     return { ok: false, fieldErrors: {}, formError: 'unauthenticated' };
   }
-  const authUserId = userData.user.id;
-  const sessionEmail = userData.user.email?.trim().toLowerCase() ?? '';
+  const authUserId = currentUser.id;
+  const sessionEmail = currentUser.email?.trim().toLowerCase() ?? '';
 
   const parsed = investorSignupSchema.safeParse({
     name: formData.get('name'),
@@ -116,7 +170,7 @@ export async function investorSignupAction(
 
   try {
     // 1. Upload the slip first — the request row references its key.
-    slipFileKey = `slips/${randomUUID()}`;
+    slipFileKey = `slips/${randomUUID()}${extensionForContentType(slip.type)}`;
     const body = new Uint8Array(await slip.arrayBuffer());
     await storage.uploadFile(slipFileKey, body, slip.type);
 

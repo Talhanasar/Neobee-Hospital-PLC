@@ -5,7 +5,7 @@ import { Prisma, type OwnAuthRole, type OtpPurpose } from '@/lib/generated/prism
 import { hashPassword } from './password';
 import { generateOtp, generateSessionToken, hashOtp, hashSessionToken } from './otp';
 
-const OTP_TTL_MINUTES = 10;
+const OTP_TTL_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
 const SESSION_DEFAULT_TTL_HOURS = 24;
 

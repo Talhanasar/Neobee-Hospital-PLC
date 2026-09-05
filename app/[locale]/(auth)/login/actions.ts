@@ -5,24 +5,50 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { AuthError, getAuthUser } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { createClient } from '@/lib/supabase/server';
+import { signIn, signOut, getCurrentUser } from '@/lib/auth-own';
 import { linkInvestorToAuthUser } from '@/lib/link-investor';
 import { completeRegistrationSchema } from '@/lib/validation';
 import { writeAuditLog, actionVerbs, getRequestMetadataFromHeaders } from '@/lib/audit';
 import { countRecentAttempts } from '@/lib/rate-limit';
 import { ActorType } from '@/lib/generated/prisma/client';
 import { ZodError } from 'zod';
-import { DEMO_INVESTOR, DEMO_ADMIN, isDemoLoginEnabled } from '@/lib/demo-users';
+import { DEMO_INVESTOR, DEMO_INVESTOR_KISTI, DEMO_ADMIN, isDemoLoginEnabled } from '@/lib/demo-users';
 import { isDemoData } from '@/data/demo/store';
 
+export type LoginResult =
+  | { ok: true; role: 'admin' | 'investor'; needsProfile: boolean }
+  | { ok: false; error: 'invalidCredentials' | 'unauthenticated' | 'generic' };
+
+export async function loginAction(email: string, password: string): Promise<LoginResult> {
+  const normEmail = email.trim().toLowerCase();
+  const result = await signIn(normEmail, password);
+  if (!result.ok) {
+    return { ok: false, error: 'invalidCredentials' };
+  }
+  const user = await getCurrentUser();
+  if (!user) {
+    return { ok: false, error: 'unauthenticated' };
+  }
+  if (user.role === 'ADMIN' || user.role === 'STAFF') {
+    revalidatePath('/admin');
+    return { ok: true, role: 'admin', needsProfile: false };
+  }
+  const investor = await prisma.investor.findUnique({
+    where: { authUserId: user.id },
+    select: { id: true },
+  });
+  const needsProfile = investor === null;
+  revalidatePath('/portal');
+  return { ok: true, role: 'investor', needsProfile };
+}
+
 export async function completeLoginAction(): Promise<{ ok: boolean; hasRecord: boolean; needsProfile: boolean }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) return { ok: false, hasRecord: false, needsProfile: false };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, hasRecord: false, needsProfile: false };
   // Email is the auth identity; the deposit phone is claimed later on the
   // profile step (linked with an NID match). Here we only check whether the
   // auth user already has an Investor row.
-  const investor = await prisma.investor.findUnique({ where: { authUserId: data.user.id }, select: { id: true } });
+  const investor = await prisma.investor.findUnique({ where: { authUserId: user.id }, select: { id: true } });
   const hasRecord = investor !== null;
   revalidatePath('/portal');
   return { ok: true, hasRecord, needsProfile: !hasRecord };
@@ -36,8 +62,7 @@ export async function signOutAction(): Promise<void> {
     revalidatePath('/', 'layout');
     redirect('/');
   }
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  await signOut();
   revalidatePath('/', 'layout');
   redirect('/');
 }
@@ -47,43 +72,39 @@ export type DemoLoginResult =
   | { ok: false; error: 'demoDisabled' | 'demoFailed' };
 
 // One-click demo sign-in for presentations. Signs in with a seeded
-// phone+password via the SSR server client (cookies persist the session,
-// per the @supabase/ssr server-action pattern), then returns the role so
-// the client wrapper can route to the right dashboard.
+// credentials via own-auth backend (cookies persist the session),
+// then returns the role so the client wrapper can route to the right dashboard.
 // 'investor-kisti' is the second demo identity (installment investor); it
-// only exists in DEMO_DATA mode — the Supabase-seeded path keeps the
-// original two identities.
+// exists in DEMO_DATA mode and against the seeded database (demo-kisti@neobee.test).
 export async function demoLoginAction(role: 'investor' | 'investor-kisti' | 'admin'): Promise<DemoLoginResult> {
   if (!isDemoLoginEnabled()) return { ok: false, error: 'demoDisabled' };
 
   // Demo data mode: the session is a signed-out-by-default cookie — no
-  // Supabase, no seed, no database. The demo dataset carries the identities.
+  // database dependency. The demo dataset carries the identities.
   if (isDemoData()) {
     const jar = await cookies();
     jar.set('neobee-demo-role', role, { httpOnly: true, sameSite: 'lax', path: '/' });
     revalidatePath('/portal');
     return { ok: true, role };
   }
-  if (role === 'investor-kisti') return { ok: false, error: 'demoFailed' };
 
-  const credentials = role === 'investor'
-    ? { email: DEMO_INVESTOR.email, password: DEMO_INVESTOR.password }
-    : { email: DEMO_ADMIN.email, password: DEMO_ADMIN.password };
+  const credentials =
+    role === 'admin'
+      ? { email: DEMO_ADMIN.email, password: DEMO_ADMIN.password }
+      : role === 'investor-kisti'
+        ? { email: DEMO_INVESTOR_KISTI.email, password: DEMO_INVESTOR_KISTI.password }
+        : { email: DEMO_INVESTOR.email, password: DEMO_INVESTOR.password };
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({
-    email: credentials.email,
-    password: credentials.password,
-  });
-  if (error) return { ok: false, error: 'demoFailed' };
+  const result = await signIn(credentials.email, credentials.password);
+  if (!result.ok) return { ok: false, error: 'demoFailed' };
 
   // Reuse the same post-login linking step as completeLoginAction so the
   // demo investor's auth user is linked to their Investor row on first login.
-  if (role === 'investor') {
-    const { data: userData } = await supabase.auth.getUser();
-    if (userData.user) {
-      const phone = (userData.user.user_metadata?.phone ?? userData.user.phone ?? '') as string;
-      await linkInvestorToAuthUser(userData.user.id, phone);
+  if (role !== 'admin') {
+    const user = await getCurrentUser();
+    if (user) {
+      const phone = role === 'investor-kisti' ? DEMO_INVESTOR_KISTI.phone : DEMO_INVESTOR.phone;
+      await linkInvestorToAuthUser(user.id, phone);
     }
   }
 
@@ -194,7 +215,7 @@ export type CreateInvestorProfileState =
 
 export async function createInvestorProfileAction(
   prevState: CreateInvestorProfileState,
-  formData: FormData
+  formData: FormData,
 ): Promise<CreateInvestorProfileState> {
   // Auth gate: require an authenticated session
   let authUser;
@@ -232,12 +253,11 @@ export async function createInvestorProfileAction(
   // The auth user is the verified email. The deposit phone is claimed here —
   // since email auth never proves the phone, an existing staff-created record
   // is linked only when BOTH the phone and the NID match it.
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
     return { ok: false, fieldErrors: {}, formError: 'unauthenticated' };
   }
-  const sessionEmail = userData.user.email?.trim().toLowerCase() ?? '';
+  const sessionEmail = currentUser.email?.trim().toLowerCase() ?? '';
 
   const raw = {
     name: formData.get('name'),

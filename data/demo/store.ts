@@ -147,11 +147,13 @@ export function demoGetRequestForReview(id: string) {
 
 export function demoGetAdminStats() {
   const total = investments.reduce((s, i) => s + i.amount, 0);
+  const sharesTaken = investments.reduce((s, i) => s + i.shares, 0);
   const confirmed = investments.filter((i) => i.status === 'CONFIRMED');
   const pending = investments.filter((i) => i.status === 'PENDING');
   return {
     totalSubscribed: total,
     totalCount: investments.length,
+    sharesTaken,
     confirmedAmount: confirmed.reduce((s, i) => s + i.amount, 0),
     confirmedCount: confirmed.length,
     pendingAmount: pending.reduce((s, i) => s + i.amount, 0),

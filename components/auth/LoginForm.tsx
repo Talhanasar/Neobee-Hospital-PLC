@@ -2,9 +2,8 @@
 
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
-import { useRouter } from '@/i18n/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { completeLoginAction, demoPasswordLoginAction } from '@/app/[locale]/(auth)/login/actions';
+import { Link, useRouter } from '@/i18n/navigation';
+import { loginAction, demoPasswordLoginAction } from '@/app/[locale]/(auth)/login/actions';
 import { isDemoClient } from '@/data/demo/client';
 import { btnClasses } from '@/components/ui/bits';
 
@@ -16,7 +15,6 @@ import { btnClasses } from '@/components/ui/bits';
 export default function LoginForm({ footer }: { footer?: React.ReactNode }) {
   const t = useTranslations('login');
   const router = useRouter();
-  const supabase = React.useMemo(() => createClient(), []);
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [loading, setLoading] = React.useState(false);
@@ -31,19 +29,21 @@ export default function LoginForm({ footer }: { footer?: React.ReactNode }) {
     setMessage(null);
     try {
       if (isDemoClient()) {
-        // Demo mode: no Supabase — the server action checks the in-memory
-        // demo accounts (including ones registered during this demo run).
+        // Demo mode: check the in-memory demo accounts
         const result = await demoPasswordLoginAction(email, password);
         if (!result.ok) throw new Error(t('errorGeneric'));
         router.push(result.role === 'admin' ? '/admin' : '/portal');
         return;
       }
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-      if (error) throw error;
-      const result = await completeLoginAction();
+      const result = await loginAction(email, password);
+      if (!result.ok) {
+        setError(t('errorGeneric'));
+        return;
+      }
+      if (result.role === 'admin') {
+        router.push('/admin');
+        return;
+      }
       if (result.needsProfile) {
         // Legacy accounts created before the wizard: send them to the wizard
         // to finish registration (details + share request) in one pass.
@@ -97,6 +97,10 @@ export default function LoginForm({ footer }: { footer?: React.ReactNode }) {
         <button type="submit" disabled={loading} className={`${btnClasses('primary', 'lg')} w-full ${focusRing}`}>
           {loading ? t('verifying') : t('verify')}
         </button>
+
+        <p className="text-center text-xs text-ink-soft">
+          <Link href="/forgot-password" className="underline hover:text-ink">{t('forgotPassword')}</Link>
+        </p>
       </form>
 
       <div role="status" aria-live="polite">

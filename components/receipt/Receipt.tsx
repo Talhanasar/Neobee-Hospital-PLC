@@ -33,11 +33,8 @@ export default async function Receipt({ data, qrDataUrl }: { data: ReceiptData; 
   return (
     <section className="border border-line rounded-xl overflow-hidden bg-panel">
       <div className="bg-ink text-white px-[22px] py-[18px] flex gap-3 items-center">
-        <svg viewBox="0 0 38 42" width="38" height="42" aria-hidden="true" className="shrink-0">
-          <polygon points="19,1 36,11 36,31 19,41 2,31 2,11" fill="#0B6E99" />
-          <polygon points="19,8 30,14.5 30,27.5 19,34 8,27.5 8,14.5" fill="#F7FAFC" />
-          <text x="19" y="26" textAnchor="middle" fontFamily="Archivo, sans-serif" fontWeight="800" fontSize="13" fill="#0A4D6B">N</text>
-        </svg>
+        {/* eslint-disable-next-line @next/next/no-img-element -- local static brand asset */}
+        <img src="/images/neobee-logo.jpeg" alt="" width={40} height={40} className="shrink-0 rounded-lg object-cover" />
         <div className="min-w-0 flex-1">
           <div className="font-display text-[18px] font-semibold leading-tight">{t('title')}</div>
           <div className="text-[12px] text-white/80">{t('subtitle')}</div>

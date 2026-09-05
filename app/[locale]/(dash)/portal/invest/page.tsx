@@ -60,6 +60,7 @@ export default async function InvestmentsPage({ params }: Props) {
           paymentPlan: row.paymentPlan,
           depositDate: row.depositDate.toISOString(),
           confirmedAt: row.confirmedAt?.toISOString() ?? null,
+          paymentGroup: row.paymentGroup ?? null,
           kistis: (schedules.get(row.id) ?? []).map((s) => ({
             id: s.id,
             installmentNo: s.installmentNo,

@@ -7,7 +7,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   TARGET_SHARES: 15000,
   FOUNDING_AMOUNT: 100000000,
   TARGET_ENTREPRENEURS: 50,
-  FULL_PAYMENT_DISCOUNT_PER_SHARE: 0, // multi-share discounts TBD — re-enable via the Setting when decided.
+  FULL_PAYMENT_DISCOUNT_PER_SHARE: 10000, // 5% early-settlement discount (৳10,000 per ৳200,000 share) when every chosen share is paid at once.
   INSTALLMENT_UNIT_AMOUNT: 50000, // per-kisti amount per share (4 kistis × ৳50,000 = ৳2,00,000 for one share).
   INSTALLMENT_COUNT: 4,
 } as const);
@@ -19,9 +19,9 @@ export const MIN_SHARES = 1;
 export const MAX_SHARES = 100;
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const CODE_LENGTH = 6;
-export const UID_PREFIX = 'NEO-';
+export const UID_PREFIX = 'NHL-S-';
 export const CODE_PREFIX = 'NB-';
-export const UID_PAD = 4;
+export const UID_PAD = 6;
 
 export const InvestmentCategory = Object.freeze({
   SHAREHOLDER: 'SHAREHOLDER',
@@ -44,6 +44,12 @@ export type PaymentPlanValue =
 function assertPositiveInteger(value: number, name: string): void {
   if (!Number.isInteger(value) || value <= 0) {
     throw new RangeError(`${name} must be a positive integer`);
+  }
+}
+
+function assertNonNegativeInteger(value: number, name: string): void {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new RangeError(`${name} must be a non-negative integer`);
   }
 }
 
@@ -82,9 +88,10 @@ export function calculateAmount(shares: number, sharePrice: number): number {
 
 export function calculateIncentive(shares: number, isEntrepreneur: boolean, incentivePerShare: number): number {
   assertPositiveInteger(shares, 'shares');
-  assertPositiveInteger(incentivePerShare, 'incentivePerShare');
-  // Validation-layer concern; see assertEntrepreneurEligible.
-  return isEntrepreneur ? calculateAmount(shares, incentivePerShare) : 0;
+  // 0 is legal — the runtime setting may disable incentives entirely; the
+  // per-share value is only used when isEntrepreneur is true.
+  assertNonNegativeInteger(incentivePerShare, 'incentivePerShare');
+  return isEntrepreneur && incentivePerShare > 0 ? calculateAmount(shares, incentivePerShare) : 0;
 }
 
 export function assertEntrepreneurEligible(shares: number, isEntrepreneur: boolean): void {
@@ -139,11 +146,20 @@ export function formatBdt(amount: number): string {
   return amount.toLocaleString('en-IN');
 }
 
-// Installment plans are currently offered only for exactly one share;
-// multi-share kisti rules are a future business decision, not a schema limit.
+// Combined-share kistis are allowed for any share count: the kisti agreement
+// (NHL-K group) covers all member shares with one shared schedule.
 export function canPayByInstallment(shares: number): boolean {
   assertPositiveInteger(shares, 'shares');
-  return shares === 1;
+  return shares >= 1;
+}
+
+// Payment-group reference series. Separate sequences per kind — a share sale
+// never advances the kisti or payment-group counters (locked convention).
+export type GroupSeries = 'K' | 'PG';
+
+export function formatGroupRef(series: GroupSeries, sequence: number): string {
+  assertPositiveInteger(sequence, 'sequence');
+  return `NHL-${series}-${String(sequence).padStart(6, '0')}`;
 }
 
 export function fullPaymentPerShare(sharePrice: number, discountPerShare: number): number {

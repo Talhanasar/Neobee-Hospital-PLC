@@ -19,6 +19,11 @@ enum PaymentPlan {
   INSTALLMENT
 }
 
+enum PaymentGroupKind {
+  INSTANT
+  KISTI
+}
+
 enum InvestmentStatus {
   PENDING
   CONFIRMED
@@ -111,6 +116,7 @@ model Investor {
 
   investments       Investment[]
   requests          InvestmentRequest[]
+  paymentGroups     PaymentGroup[]
 }
 
 model Investment {
@@ -149,6 +155,8 @@ model Investment {
   certificate           Certificate?
   request               InvestmentRequest?
   paymentRequests       InvestmentRequest[]   @relation("PaymentRequestTarget")
+  paymentGroupId        String?
+  paymentGroup          PaymentGroup?         @relation(fields: [paymentGroupId], references: [id], onDelete: Restrict)
 
   @@index([investorId])
   @@index([status])
@@ -170,6 +178,8 @@ model InvestmentRequest {
   entrepreneurRequested Boolean             @default(false)
   paymentPlan       PaymentPlan? // SHARE_PURCHASE only: FULL or INSTALLMENT; null for PAYMENT requests.
   installmentNo     Int? // PAYMENT only: which kisti (1–4) this payment targets; null for SHARE_PURCHASE or FULL plans.
+  paymentGroupId    String? // PAYMENT only: set when the payment targets a kisti agreement (NHL-K group) instead of a single legacy investment.
+  paymentGroup      PaymentGroup? @relation(fields: [paymentGroupId], references: [id], onDelete: Restrict)
   sharePrice        Int                      // snapshot at submission
   incentivePerShare Int                      // snapshot at submission
   amount            Int                      // snapshot: shares * sharePrice (SHARE_PURCHASE) or the paid amount (PAYMENT)
@@ -191,6 +201,28 @@ model InvestmentRequest {
   @@index([investorId])
   @@index([status, createdAt])
   @@index([targetInvestmentId])
+  @@index([paymentGroupId])
+}
+
+model PaymentGroup {
+  id          String           @id @default(uuid())
+  ref         String           @unique // NHL-PG-000001 (INSTANT) or NHL-K-000001 (KISTI) — separate sequences per kind, never shared counters.
+  refSequence Int // per-kind counter; uniqueness is (kind, refSequence) because the two series count independently.
+  investorId  String
+  investor    Investor         @relation(fields: [investorId], references: [id], onDelete: Restrict)
+  kind        PaymentGroupKind // INSTANT = shares paid in one go; KISTI = an installment agreement covering the member shares.
+  shareCount  Int // total shares linked to this group at creation.
+  totalAmount Int // total plan value at creation (integer taka snapshot).
+  slipFileKey String? // one deposit slip per group — the single real-world payment event.
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  investments          Investment[]
+  installmentSchedules InstallmentSchedule[]
+  paymentRequests      InvestmentRequest[]
+
+  @@index([investorId])
+  @@unique([kind, refSequence])
 }
 
 model Transaction {
@@ -219,9 +251,11 @@ model Transaction {
 
 model InstallmentSchedule {
   id            String            @id @default(uuid())
-  investmentId  String
-  investment    Investment        @relation(fields: [investmentId], references: [id], onDelete: Restrict)
-  installmentNo Int               @default(1) // kisti 1–4; displayed ID is derived as `<uid>-K<installmentNo>`.
+  investmentId  String? // set for legacy per-share kistis; group kistis (NHL-K agreements) carry paymentGroupId instead.
+  investment    Investment?       @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+  paymentGroupId String? // kistis of a combined-share agreement (NHL-K) belong to the PaymentGroup, not to one share.
+  paymentGroup  PaymentGroup?     @relation(fields: [paymentGroupId], references: [id], onDelete: Restrict)
+  installmentNo Int               @default(1) // kisti 1–4; legacy per-share display ID is derived as `<uid>-K<installmentNo>`; group kistis display as `<groupRef> · kisti <n>`.
   dueDate       DateTime
   amount        Int
   status        InstallmentStatus @default(SCHEDULED)
@@ -232,8 +266,10 @@ model InstallmentSchedule {
   transactions Transaction[]
 
   @@index([investmentId])
+  @@index([paymentGroupId])
   @@index([status, dueDate])
   @@unique([investmentId, installmentNo])
+  @@unique([paymentGroupId, installmentNo])
 }
 
 model Certificate {
@@ -335,7 +371,7 @@ model EmailOtp {
   email       String // lowercased
   codeHash    String // sha256(code) — 6-digit codes are low-entropy; hashing at rest prevents DB-read replay
   purpose     OtpPurpose
-  expiresAt   DateTime // 10 minutes
+  expiresAt   DateTime // 5 minutes
   attempts    Int       @default(0) // max 5 verify attempts, then invalidated
   consumedAt  DateTime?
   createdAt   DateTime  @default(now())

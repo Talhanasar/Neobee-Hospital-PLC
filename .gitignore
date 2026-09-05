@@ -74,9 +74,13 @@ take-screenshots.js
 # temp build log artifacts
 /neobee-build.log
 
+# local file storage uploads
+/storage-uploads/
+
 # reference material & local agent artifacts (kept local, never pushed)
 /done_by_zcode/
 /reference/
 /screenshots/
 /.zcode/
 /.visual-audit/
+/graphify-out/

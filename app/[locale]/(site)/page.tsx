@@ -79,7 +79,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
               />
               <div className="hex-clip-pointy relative aspect-[1/1.1] w-full overflow-hidden bg-panel">
                 <Image
-                  src="/images/hero-hospital.png"
+                  src="/images/hospital-hero.png"
                   alt={t('heroAlt')}
                   width={1440}
                   height={720}

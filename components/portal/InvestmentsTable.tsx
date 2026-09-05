@@ -34,6 +34,7 @@ export type InvestmentsTableRow = {
   paymentPlan: 'FULL' | 'INSTALLMENT';
   depositDate: string; // ISO date
   confirmedAt: string | null;
+  paymentGroup: { ref: string; kind: 'INSTANT' | 'KISTI'; shareCount: number } | null;
   kistis: Array<{
     id: string;
     installmentNo: number;
@@ -168,6 +169,17 @@ export default function InvestmentsTable({ rows }: { rows: InvestmentsTableRow[]
                 <tr className="hover:bg-honey-soft/50">
                   <td className={`num ${rowBorder}`}>
                     <div className="font-semibold">{row.uid}</div>
+                    {row.paymentGroup ? (
+                      <div className="mt-0.5 text-[11px] leading-tight text-ink-soft">
+                        <span className="font-mono">{row.paymentGroup.ref}</span>
+                        {' · '}
+                        {row.paymentGroup.kind === 'KISTI'
+                          ? t('groupKistiCount', { count: row.kistis.length })
+                          : t('kindInstant')}
+                        {' · '}
+                        {t('groupShareCount', { count: row.paymentGroup.shareCount })}
+                      </div>
+                    ) : null}
                     <CategoryBadge category={row.category} />
                   </td>
                   <td className={rowBorder}>
@@ -195,7 +207,9 @@ export default function InvestmentsTable({ rows }: { rows: InvestmentsTableRow[]
                           aria-expanded={openId === row.id}
                           className={`inline-flex h-8 items-center rounded-lg border border-line bg-panel px-3 text-[13px] font-semibold text-honey-deep hover:border-honey ${focusRing}`}
                         >
-                          {openId === row.id ? t('kistiHide') : t('kistiToggleShort', { uid: row.uid })}
+                          {openId === row.id
+                            ? t('kistiHide')
+                            : t('kistiToggleShort', { uid: row.paymentGroup?.kind === 'KISTI' && row.paymentGroup.ref ? row.paymentGroup.ref : row.uid })}
                         </button>
                       ) : null}
                     </div>
@@ -222,7 +236,11 @@ export default function InvestmentsTable({ rows }: { rows: InvestmentsTableRow[]
                               const isNext = nextKisti?.installmentNo === k.installmentNo;
                               return (
                                 <tr key={k.id} className="border-t border-line">
-                                  <td className="num py-2 pr-4 font-mono">{`${row.uid}-K${k.installmentNo}`}</td>
+                                  <td className="num py-2 pr-4 font-mono">
+                                    {row.paymentGroup?.kind === 'KISTI'
+                                      ? `${row.paymentGroup.ref}-K${k.installmentNo}`
+                                      : `${row.uid}-K${k.installmentNo}`}
+                                  </td>
                                   <td className="py-2 pr-4"><Money value={k.amount} /></td>
                                   <td className="num py-2 pr-4">{k.dueDate.slice(0, 10)}</td>
                                   <td className="py-2 pr-4"><KistiStatusBadge status={k.status} pendingClaim={k.pendingClaim} /></td>

@@ -2,23 +2,20 @@
 
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
-import { createClient } from '@/lib/supabase/client';
-import { demoChangePasswordAction } from '@/app/[locale]/(auth)/login/actions';
-import { isDemoClient } from '@/data/demo/client';
+import { sendPasswordResetOtpAction, changePasswordWithOtpAction } from '@/app/[locale]/(dash)/portal/password/actions';
 import { btnClasses } from '@/components/ui/bits';
 
 /**
  * Change-password flow for a signed-in user (investor or staff):
- *   1. "Send code" — Supabase emails a 6-digit OTP (recovery type) to the
+ *   1. "Send code" — own-auth emails a 6-digit OTP (recovery type) to the
  *      signed-in user's email.
  *   2. Enter code + new password — verifyOtp re-establishes the session,
- *      then updateUser writes the new password.
+ *      then writes the new password.
  * The signed-in session is not enough on its own: the emailed code proves
  * control of the mailbox before a credential change.
  */
 export default function PasswordChangeForm() {
   const t = useTranslations('portal');
-  const supabase = React.useMemo(() => createClient(), []);
   const [otp, setOtp] = React.useState('');
   const [otpSent, setOtpSent] = React.useState(false);
   const [password, setPassword] = React.useState('');
@@ -32,19 +29,10 @@ export default function PasswordChangeForm() {
     setError(null);
     setLoading(true);
     try {
-      // Demo: no email gateway — go straight to the code step (any 6 digits verify).
-      if (isDemoClient()) {
-        setOtpSent(true);
-        return;
+      const res = await sendPasswordResetOtpAction();
+      if (!res.ok) {
+        throw new Error(t('errorGeneric'));
       }
-      const { data: userData } = await supabase.auth.getUser();
-      const target = (userData.user?.email ?? '').trim();
-      if (!target) {
-        setError(t('otpEmailRequired'));
-        return;
-      }
-      const { error: otpError } = await supabase.auth.resetPasswordForEmail(target);
-      if (otpError) throw otpError;
       setOtpSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errorGeneric'));
@@ -71,29 +59,14 @@ export default function PasswordChangeForm() {
     }
     setLoading(true);
     try {
-      if (isDemoClient()) {
-        // Demo: no email gateway — any 6-digit code verifies.
-        const result = await demoChangePasswordAction(password);
-        if (!result.ok) throw new Error(t('errorGeneric'));
-        setDone(true);
-        setPassword('');
-        setConfirmPassword('');
-        setOtp('');
-        return;
+      const res = await changePasswordWithOtpAction(otp.trim(), password);
+      if (!res.ok) {
+        if (res.error === 'invalidOrExpiredOtp') {
+          setError(t('otpErrWrong'));
+          return;
+        }
+        throw new Error(t('errorGeneric'));
       }
-      const { data: userData } = await supabase.auth.getUser();
-      const target = (userData.user?.email ?? '').trim();
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        email: target,
-        token: otp.trim(),
-        type: 'recovery',
-      });
-      if (verifyError) {
-        setError(t('otpErrWrong'));
-        return;
-      }
-      const { error: updateError } = await supabase.auth.updateUser({ password });
-      if (updateError) throw updateError;
       setDone(true);
       setPassword('');
       setConfirmPassword('');

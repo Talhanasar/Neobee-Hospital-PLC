@@ -8,7 +8,7 @@
  * What `start` does:
  *   Boots `next dev` with DEMO_DATA=true. Every read serves the static
  *   dataset from data/demo/dataset.ts (in-memory mutations only), and the
- *   demo login tiles sign in via a local cookie — no Postgres, no Supabase,
+ *   demo login tiles sign in via a local cookie — no Postgres,
  *   no seed, nothing to wipe. Restarting resets the demo story.
  *
  * To show REAL data again, just run `pnpm dev` as usual (DEMO_DATA unset).

@@ -4,9 +4,13 @@ import * as React from 'react';
 import { useActionState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { checkRegistrationStatusAction } from '@/app/[locale]/(auth)/login/actions';
-import { investorSignupAction, type InvestorSignupState } from '@/app/[locale]/(auth)/register/actions';
+import {
+  investorSignupAction,
+  sendRegistrationOtpAction,
+  verifyRegistrationOtpAction,
+  type InvestorSignupState,
+} from '@/app/[locale]/(auth)/register/actions';
 import { isDemoClient } from '@/data/demo/client';
 import { btnClasses } from '@/components/ui/bits';
 import { BadgeCheckIcon } from '@/components/ui/icons';
@@ -23,7 +27,10 @@ import { CategoryBadge } from '@/components/ui/CategoryBadge';
 type Phase = 'details' | 'investment' | 'deposit' | 'otp' | 'success';
 
 const SHARE_PRICE = 200000; // display only; the server recomputes from live settings
+const FULL_PAYMENT_DISCOUNT_PER_SHARE = 10000; // display only — mirrors the FULL_PAYMENT_DISCOUNT_PER_SHARE setting (5% of the share price)
 const KISTI_UNIT = 50000;
+const FULL_DISCOUNT_PERCENT = Math.round((FULL_PAYMENT_DISCOUNT_PER_SHARE / SHARE_PRICE) * 100);
+const RESEND_COOLDOWN_SECONDS = 50;
 
 /**
  * Investor registration wizard:
@@ -40,12 +47,13 @@ export default function RegisterForm() {
   const tErrors = useTranslations('errors');
   const tMethods = useTranslations('methods');
   const router = useRouter();
-  const supabase = React.useMemo(() => createClient(), []);
   const [wizardPhase, setPhase] = React.useState<Phase>('details');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [otp, setOtp] = React.useState('');
   const [otpSent, setOtpSent] = React.useState(false);
+  const [now, setNow] = React.useState<number | null>(null);
+  const [resendReadyAt, setResendReadyAt] = React.useState(0);
 
   const [name, setName] = React.useState('');
   const [nid, setNid] = React.useState('');
@@ -67,8 +75,10 @@ export default function RegisterForm() {
   const phone = `+880${digits}`;
   const focusRing = 'focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2';
 
-  const amountDue = paymentPlan === 'FULL' ? SHARE_PRICE * shares : installmentPerKisti(shares, KISTI_UNIT);
+  const hasFullDiscount = paymentPlan === 'FULL' && FULL_PAYMENT_DISCOUNT_PER_SHARE > 0;
+  const amountDue = paymentPlan === 'FULL' ? (SHARE_PRICE - FULL_PAYMENT_DISCOUNT_PER_SHARE) * shares : installmentPerKisti(shares, KISTI_UNIT);
   const kistiAllowed = canPayByInstallment(shares);
+  const resendIn = now === null ? RESEND_COOLDOWN_SECONDS : Math.max(0, Math.ceil((resendReadyAt - now) / 1000));
 
   const [signupState, signupAction, signupPending] = useActionState(investorSignupAction, {
     ok: false,
@@ -77,6 +87,13 @@ export default function RegisterForm() {
 
   // Phase follows the action result; no setState-in-effect cascade.
   const phase: Phase = signupState.ok ? 'success' : wizardPhase;
+
+  // Tick the resend countdown once per second while the OTP phase is visible.
+  React.useEffect(() => {
+    if (phase !== 'otp') return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [phase]);
 
   // ── Phase 1: account details ─────────────────────────────────────────
   const submitDetails = async (e: React.FormEvent) => {
@@ -92,16 +109,6 @@ export default function RegisterForm() {
       if ('error' in status) { setError(tErrors('rateLimited')); return; }
       if (status.registered) {
         setError(status.approved ? t('errAlreadyApproved') : t('errAlreadyPending'));
-        return;
-      }
-      // Create the auth user now; email confirmation is enforced via the OTP step.
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { data: { full_name: name.trim(), deposit_phone: phone, nid: nid.trim() } },
-      });
-      if (signUpError) {
-        setError(signUpError.message.includes('already registered') ? t('errAlreadyRegistered') : signUpError.message);
         return;
       }
       setPhase('investment');
@@ -121,14 +128,23 @@ export default function RegisterForm() {
       // Demo: no email gateway — skip the OTP send; the code step accepts any 6 digits.
       if (isDemoClient()) {
         setOtpSent(true);
+        setResendReadyAt(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
         return;
       }
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { shouldCreateUser: false },
-      });
-      if (otpError) throw otpError;
+      const res = await sendRegistrationOtpAction(email.trim(), password);
+      if (!res.ok) {
+        if (res.error === 'emailTaken') {
+          setError(t('errAlreadyRegistered'));
+          return;
+        }
+        if (res.error === 'otpSendFailed') {
+          setError(t('errOtpSend'));
+          return;
+        }
+        throw new Error(t('errorGeneric'));
+      }
       setOtpSent(true);
+      setResendReadyAt(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errorGeneric'));
     } finally {
@@ -146,12 +162,11 @@ export default function RegisterForm() {
       // Demo: no email gateway — any 6-digit code verifies; skip the OTP check
       // and proceed straight to the signup action.
       if (!isDemoClient()) {
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          email: email.trim(),
-          token: otp.trim(),
-          type: 'email',
-        });
-        if (verifyError) { setError(t('errOtpWrong')); return; }
+        const verifyRes = await verifyRegistrationOtpAction(email.trim(), otp.trim(), password);
+        if (!verifyRes.ok) {
+          setError(t('errOtpWrong'));
+          return;
+        }
       }
       // Session established — the form action carries the whole wizard payload.
       const formData = new FormData();
@@ -306,7 +321,19 @@ export default function RegisterForm() {
           <div className="rounded-xl border border-line bg-paper px-3.5 py-3">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-sm font-medium text-ink">{t('amountPaidLabel')}</span>
-              <span className="num font-display text-lg font-bold text-ink">৳{formatBdt(amountDue)}</span>
+              <span className="flex flex-col items-end gap-1">
+                {hasFullDiscount ? (
+                  <span className="rounded-full bg-green-soft px-2 py-0.5 font-mono text-[10.5px] font-semibold uppercase tracking-wider text-green">
+                    {t('fullDiscountBadge', { percent: FULL_DISCOUNT_PERCENT })}
+                  </span>
+                ) : null}
+                <span className="flex items-baseline gap-2">
+                  {hasFullDiscount ? (
+                    <span className="num text-sm text-ink-soft line-through">৳{formatBdt(SHARE_PRICE * shares)}</span>
+                  ) : null}
+                  <span className="num font-display text-lg font-bold text-ink">৳{formatBdt(amountDue)}</span>
+                </span>
+              </span>
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-ink-soft">
               {paymentPlan === 'FULL'
@@ -323,7 +350,7 @@ export default function RegisterForm() {
       ) : null}
 
       {phase === 'deposit' ? (
-        <form onSubmit={(e) => { e.preventDefault(); setPhase('otp'); }} className="space-y-4" noValidate>
+        <form onSubmit={(e) => { e.preventDefault(); setPhase('otp'); void sendOtp(); }} className="space-y-4" noValidate>
           <div className="space-y-1.5">
             <label htmlFor="reg-method" className="block text-sm font-medium text-ink">{tInv('depositMethod')}</label>
             <select id="reg-method" value={depositMethod} onChange={(e) => setDepositMethod(e.target.value)} className={`nb-input ${focusRing}`}>
@@ -350,13 +377,13 @@ export default function RegisterForm() {
               accept="image/jpeg,image/png,image/webp,application/pdf"
               onChange={(e) => setSlipFile(e.target.files?.[0] ?? null)}
               required
-              className={`nb-input file:mr-3 file:rounded-md file:border-0 file:bg-honey-soft file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-honey-deep ${focusRing}`}
+              className={`nb-input h-auto py-2 file:mr-3 file:rounded-md file:border-0 file:bg-honey-soft file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-honey-deep ${focusRing}`}
             />
             <p className="text-xs text-ink-soft">{t('slipHelper', { max: '5 MB' })}</p>
           </div>
           <div className="space-y-1.5">
             <label htmlFor="reg-note" className="block text-sm font-medium text-ink">{tInv('note')}</label>
-            <textarea id="reg-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} className={`nb-input ${focusRing}`} />
+            <textarea id="reg-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} className={`w-full rounded-xl border border-line bg-panel px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-soft/60 transition-colors focus:border-honey focus:outline-none ${focusRing}`} />
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => setPhase('investment')} className={`${btnClasses('outline', 'lg')} ${focusRing}`}>{t('backStep')}</button>
@@ -388,10 +415,13 @@ export default function RegisterForm() {
           <button type="submit" disabled={loading || signupPending} className={`${btnClasses('primary', 'lg')} w-full ${focusRing}`}>
             {loading || signupPending ? t('submitting') : t('otpConfirm')}
           </button>
-          <button type="button" onClick={sendOtp} disabled={loading} className={`${btnClasses('ghost', 'md')} w-full ${focusRing}`}>
-            {otpSent ? t('otpResend') : t('otpSend')}
-          </button>
-          <button type="button" onClick={() => setPhase('deposit')} className={`${btnClasses('ghost', 'md')} w-full ${focusRing}`}>{t('backStep')}</button>
+          {resendIn > 0 ? (
+            <p className="text-center text-xs text-ink-soft">{t('otpResendIn', { seconds: resendIn })}</p>
+          ) : (
+            <button type="button" onClick={sendOtp} disabled={loading} className={`${btnClasses('ghost', 'md')} w-full ${focusRing}`}>
+              {t('otpResend')}
+            </button>
+          )}
         </form>
       ) : null}
 

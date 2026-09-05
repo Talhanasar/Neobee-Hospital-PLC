@@ -45,7 +45,7 @@ function flattenFieldErrors(error: ZodError): Record<string, string[]> {
 }
 
 // Account details: name / NID / phone / TIN / address are editable. Email is the
-// verified Supabase auth identity (OTP login, password reset) and is never
+// verified own-auth identity (email verification, password reset) and is never
 // editable here. Phone uniqueness is enforced against the @unique constraint.
 export async function updateInvestorProfileAction(
   prevState: UpdateAccountState,

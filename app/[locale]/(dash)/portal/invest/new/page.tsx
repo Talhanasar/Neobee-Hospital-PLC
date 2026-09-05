@@ -40,13 +40,15 @@ export default async function NewInvestmentPage({ params }: Props) {
           status: row.status,
           paymentPlan: row.paymentPlan,
         }))}
-        installments={[...schedules.values()].flat().map((s) => ({
-          investmentId: s.investmentId,
-          installmentNo: s.installmentNo,
-          amount: s.amount,
-          dueDate: s.dueDate.toISOString(),
-          status: s.status,
-        }))}
+        installments={[...schedules.values()].flat()
+          .filter((s): s is typeof s & { investmentId: string } => s.investmentId !== null)
+          .map((s) => ({
+            investmentId: s.investmentId,
+            installmentNo: s.installmentNo,
+            amount: s.amount,
+            dueDate: s.dueDate.toISOString(),
+            status: s.status,
+          }))}
       />
     </div>
   );

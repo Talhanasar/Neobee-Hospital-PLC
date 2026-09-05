@@ -12,6 +12,7 @@ import {
   deriveCategory,
   formatBdt,
   formatUid,
+  formatGroupRef,
   fullPaymentPerShare,
   generateVerificationCode,
   installmentPerKisti,
@@ -29,7 +30,7 @@ describe('DEFAULT_SETTINGS', () => {
       TARGET_SHARES: 15000,
       FOUNDING_AMOUNT: 100000000,
       TARGET_ENTREPRENEURS: 50,
-      FULL_PAYMENT_DISCOUNT_PER_SHARE: 0,
+      FULL_PAYMENT_DISCOUNT_PER_SHARE: 10000,
       INSTALLMENT_UNIT_AMOUNT: 50000,
       INSTALLMENT_COUNT: 4,
     });
@@ -87,9 +88,15 @@ describe('calculateIncentive', () => {
     expect(calculateIncentive(10, true, 60000)).toBe(600000);
   });
 
+  it('treats a zero incentive as disabled — an entrepreneur gets zero', () => {
+    expect(calculateIncentive(10, true, 0)).toBe(0);
+  });
+
   it('rejects invalid inputs', () => {
     for (const value of [0, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => calculateIncentive(value, true, DEFAULT_SETTINGS.INCENTIVE_PER_SHARE)).toThrow(RangeError);
+    }
+    for (const value of [-1, 2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => calculateIncentive(10, true, value)).toThrow(RangeError);
     }
   });
@@ -119,13 +126,28 @@ describe('assertEntrepreneurEligible', () => {
   });
 });
 
+describe('formatGroupRef', () => {
+  it('formats kisti agreements and instant payment groups on separate series', () => {
+    expect(formatGroupRef('K', 1)).toBe('NHL-K-000001');
+    expect(formatGroupRef('PG', 1)).toBe('NHL-PG-000001');
+    expect(formatGroupRef('K', 1234)).toBe('NHL-K-001234');
+    expect(formatGroupRef('PG', 1234567)).toBe('NHL-PG-1234567');
+  });
+
+  it('rejects non-positive sequences', () => {
+    expect(() => formatGroupRef('K', 0)).toThrow(RangeError);
+    expect(() => formatGroupRef('PG', -3)).toThrow(RangeError);
+  });
+});
+
 describe('formatUid', () => {
   it('pads to at least four digits', () => {
-    expect(formatUid(1)).toBe('NEO-0001');
-    expect(formatUid(42)).toBe('NEO-0042');
-    expect(formatUid(9999)).toBe('NEO-9999');
-    expect(formatUid(10000)).toBe('NEO-10000');
-    expect(formatUid(123456)).toBe('NEO-123456');
+    expect(formatUid(1)).toBe('NHL-S-000001');
+    expect(formatUid(42)).toBe('NHL-S-000042');
+    expect(formatUid(9999)).toBe('NHL-S-009999');
+    expect(formatUid(10000)).toBe('NHL-S-010000');
+    expect(formatUid(123456)).toBe('NHL-S-123456');
+    expect(formatUid(1234567)).toBe('NHL-S-1234567'); // padding is display-only; overflow never wraps
   });
 
   it('rejects invalid sequences', () => {
@@ -209,13 +231,13 @@ describe('formatBdt', () => {
 });
 
 describe('canPayByInstallment', () => {
-  it('allows exactly one share', () => {
+  it('allows any positive share count — kisti agreements cover combined shares', () => {
     expect(canPayByInstallment(1)).toBe(true);
+    expect(canPayByInstallment(2)).toBe(true);
+    expect(canPayByInstallment(10)).toBe(true);
   });
 
-  it('rejects multi-share and invalid counts', () => {
-    expect(canPayByInstallment(2)).toBe(false);
-    expect(canPayByInstallment(10)).toBe(false);
+  it('rejects invalid counts', () => {
     for (const value of [0, -1, 1.5, Number.NaN]) {
       expect(() => canPayByInstallment(value)).toThrow(RangeError);
     }

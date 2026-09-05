@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/navigation';
 import LanguageSwitcher from './LanguageSwitcher';
-import { HexLogo } from '@/components/ui/bits';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { MenuIcon, XIcon } from '@/components/ui/icons';
 
 export type NavAuth = { loggedIn: boolean; dashboardHref: string };
@@ -42,12 +42,14 @@ export default function NavPills({ auth }: { auth: NavAuth }) {
     <header className="no-print sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur">
       <nav aria-label={t('primaryAriaLabel')} className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link href="/" aria-label={t('home')} className="flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2">
-          <HexLogo size={34} />
+          <BrandLogo size={66} />
           <span className="text-left leading-none">
-            <span className="block font-display text-[17px] font-bold tracking-tight text-ink">
-              <BrandName />
+            <span className="block font-display text-[20px] font-bold leading-none tracking-tight">
+              <span className="text-brand-navy">Neo</span>
+              <span className="text-brand-leaf">bee</span>
+              <span className="text-brand-navy"> Hospital</span>
             </span>
-            <span className="mt-1 block font-mono text-[9.5px] uppercase tracking-[0.24em] text-honey-deep">
+            <span className="mt-1 block font-mono text-[9.5px] uppercase tracking-[0.24em] text-ink-soft">
               <BrandSuffix />
             </span>
           </span>
@@ -123,11 +125,6 @@ export default function NavPills({ auth }: { auth: NavAuth }) {
 
 const btnLinkCls =
   'inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-honey px-3.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-honey-deep hover:text-paper focus-visible:outline-2 focus-visible:outline-honey-deep focus-visible:outline-offset-2';
-
-function BrandName() {
-  const t = useTranslations('brand');
-  return <>{t('name')}</>;
-}
 
 function BrandSuffix() {
   const t = useTranslations('brand');

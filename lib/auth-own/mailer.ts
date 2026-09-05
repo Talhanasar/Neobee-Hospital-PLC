@@ -1,55 +1,107 @@
 import 'server-only';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+const LOGO_ATTACHMENT_NAME = 'neobee-logo.png';
+
+// Clinical Blue palette — mirrors app/globals.css (email clients need inline
+// styles and literal hex values, so the tokens are duplicated here).
+const COLORS = {
+  ink: '#0F1F2B',
+  inkSoft: '#3E5666',
+  paper: '#F7FAFC',
+  line: '#D7E3EC',
+  honey: '#0B6E99',
+  honeyDeep: '#0A4D6B',
+  honeySoft: '#DCEEF6',
+  brandNavy: '#1B3B6F',
+  brandLeaf: '#76B82A',
+  brandNavyDeep: '#0E1C33',
+} as const;
 
 export type OtpPurposeLabel = 'EMAIL_VERIFY' | 'PASSWORD_RESET';
 
-function buildTemplate(purpose: OtpPurposeLabel, code: string) {
-  const expiry = 'This code expires in 10 minutes.';
-  if (purpose === 'EMAIL_VERIFY') {
-    return {
-      subject: 'Neobee — verify your email',
-      html: `<html><body style="font-family:system-ui,Arial,sans-serif">
-  <h1 style="font-size:2rem">Verify your Neobee account</h1>
-  <p>Your verification code:</p>
-  <p style="font-size:3rem;font-weight:bold;letter-spacing:.25em">${code}</p>
-  <p>${expiry}</p>
-  <hr>
-  <p style="font-size:1.25rem">নিউবি হাসাব যাচাই করুন</p>
-  <p>আপনার যাচাইকরণ কোড:</p>
-  <p style="font-size:3rem;font-weight:bold;letter-spacing:.25em">${code}</p>
-  <p>${expiry} (এই কোডটি ১০ মিনিটের মধ্যে মেয়াদ শেষ হয়)।</p>
-</body></html>`,
-      text: `Neobee — email verification
-
-Your verification code: ${code}
-${expiry}
-
-নিউবি হাসাব যাচাই করুন — আপনার যাচাইকরণ কোড: ${code}
-${expiry} (এই কোডটি ১০ মিনিটের মধ্যে মেয়াদ শেষ হয়)।`,
-    };
+// The logo is attached inline (CID) rather than referenced by URL so it
+// renders in mail clients that cannot reach a localhost/dev origin.
+let logoBase64Cache: string | null | undefined;
+function logoBase64(): string | null {
+  if (logoBase64Cache !== undefined) return logoBase64Cache;
+  try {
+    logoBase64Cache = readFileSync(path.join(process.cwd(), 'public', 'images', 'logo_white_back.png')).toString('base64');
+  } catch {
+    logoBase64Cache = null;
   }
-  return {
-    subject: 'Neobee — reset your password',
-    html: `<html><body style="font-family:system-ui,Arial,sans-serif">
-  <h1 style="font-size:2rem">Reset your Neobee password</h1>
-  <p>Your password reset code:</p>
-  <p style="font-size:3rem;font-weight:bold;letter-spacing:.25em">${code}</p>
-  <p>${expiry}</p>
-  <hr>
-  <p style="font-size:1.25rem">নিউবি পাসওয়ার্ড রিসেট করুন</p>
-  <p>আপনার পাসওয়ার্ড রিসেট কোড:</p>
-  <p style="font-size:3rem;font-weight:bold;letter-spacing:.25em">${code}</p>
-  <p>${expiry} (এই কোডটি ১০ মিনিটের মধ্যে মেয়াদ শেষ হয়)।</p>
-</body></html>`,
-    text: `Neobee — password reset
+  return logoBase64Cache;
+}
 
-Your password reset code: ${code}
-${expiry}
+function buildTemplate(purpose: OtpPurposeLabel, code: string) {
+  const expiryEn = 'This code expires in 5 minutes.';
+  const expiryBn = 'এই কোডটি ৫ মিনিটের মধ্যে মেয়াদ শেষ হয়।';
 
-নিউবি পাসওয়ার্ড রিসেট করুন — আপনার পাসওয়ার্ড রিসেট কোড: ${code}
-${expiry} (এই কোডটি ১০ মিনিটের মধ্যে মেয়াদ শেষ হয়)।`,
-  };
+  const heading =
+    purpose === 'EMAIL_VERIFY' ? 'Confirm your email address' : 'Reset your password';
+  const bodyEn =
+    purpose === 'EMAIL_VERIFY'
+      ? 'Welcome to the Neobee shareholder family. Use this six-digit code to verify your email and finish your registration.'
+      : 'Use this six-digit code to reset your Neobee account password.';
+  const bodyBn =
+    purpose === 'EMAIL_VERIFY'
+      ? 'আপনার ইমেইল নিশ্চিত করতে নিচের ছয় ডিজিটের কোডটি ব্যবহার করুন।'
+      : 'আপনার নিউবি পাসওয়ার্ড রিসেট করতে এই ছয় ডিজিটের কোডটি ব্যবহার করুন।';
+
+  const subject =
+    purpose === 'EMAIL_VERIFY' ? 'Neobee — verify your email' : 'Neobee — reset your password';
+
+  const logo = logoBase64();
+  const logoHtml = logo
+    ? `<img src="cid:${LOGO_ATTACHMENT_NAME}" alt="Neobee Hospital" width="140" style="display:block;margin:0 auto;width:140px;height:auto" />`
+    : '';
+  const wordmarkHtml = `
+              <div style="margin-top:10px;font-family:-apple-system,'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:700;color:${COLORS.brandNavy};letter-spacing:-0.02em">Neo<span style="color:${COLORS.brandLeaf}">bee</span> Hospital</div>
+              <div style="margin-top:6px;font-family:monospace;font-size:10px;letter-spacing:0.3em;color:${COLORS.inkSoft};text-transform:uppercase">PLC · Chattogram</div>`;
+
+  const html = `<html><body style="margin:0;padding:0;background:${COLORS.paper};font-family:-apple-system,'Segoe UI',Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.paper};padding:24px 12px">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#FFFFFF;border:1px solid ${COLORS.line};border-radius:14px;overflow:hidden">
+        <tr><td style="padding:26px 28px 20px;background:#FFFFFF" align="center">
+          ${logoHtml}
+          ${wordmarkHtml}
+        </td></tr>
+        <tr><td style="height:4px;background:${COLORS.honey};line-height:4px;font-size:0">&nbsp;</td></tr>
+        <tr><td style="padding:28px">
+          <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:${COLORS.ink};letter-spacing:-0.02em">${heading}</h1>
+          <p style="margin:0 0 6px;font-size:15px;line-height:1.6;color:${COLORS.inkSoft}">${bodyEn}</p>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:${COLORS.inkSoft}">${bodyBn}</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.honeySoft};border-radius:12px">
+            <tr><td align="center" style="padding:18px 12px;font-size:34px;font-weight:700;letter-spacing:0.35em;color:${COLORS.honeyDeep};font-family:monospace">${code}</td></tr>
+          </table>
+          <p style="margin:18px 0 0;font-size:13px;line-height:1.6;color:${COLORS.inkSoft}">${expiryEn}</p>
+          <p style="margin:4px 0 0;font-size:13px;line-height:1.6;color:${COLORS.inkSoft}">${expiryBn}</p>
+          <p style="margin:16px 0 0;font-size:12px;color:${COLORS.inkSoft}">If you didn't request this, you can safely ignore this email. <span style="color:${COLORS.inkSoft}">অনুরোধ না করলে এই ইমেইল উপেক্ষা করুন।</span></p>
+        </td></tr>
+        <tr><td align="center" style="padding:16px 28px;background:${COLORS.paper};border-top:1px solid ${COLORS.line}">
+          <div style="font-size:10px;letter-spacing:0.24em;color:${COLORS.brandLeaf};text-transform:uppercase">Healthier Tomorrow, Together</div>
+          <div style="margin-top:6px;font-size:11px;color:${COLORS.inkSoft}">© Neobee Hospital PLC · Chattogram</div>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  const text = `Neobee Hospital — ${heading}
+
+${bodyEn}
+${bodyBn}
+
+Your six-digit code: ${code}
+${expiryEn} ${expiryBn}
+
+If you didn't request this, you can safely ignore this email.
+© Neobee Hospital PLC · Chattogram`;
+
+  return { subject, html, text, logoAttachment: logo ? { name: LOGO_ATTACHMENT_NAME, content: logo } : null };
 }
 
 export async function sendOtpEmail(
@@ -59,11 +111,14 @@ export async function sendOtpEmail(
 ): Promise<{ ok: true; messageId?: string } | { ok: false; error: string }> {
   const apiKey = process.env.BREVO_API_KEY;
   if (!apiKey) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[own-auth] OTP for', to, ':', code);
+    }
     return { ok: false, error: 'BREVO_API_KEY not configured' };
   }
 
   const senderEmail = process.env.BREVO_SENDER_EMAIL ?? 'no-reply@neobeehospital.com';
-  const { subject, html, text } = buildTemplate(purpose, code);
+  const { subject, html, text, logoAttachment } = buildTemplate(purpose, code);
 
   try {
     const res = await fetch(BREVO_API_URL, {
@@ -79,6 +134,7 @@ export async function sendOtpEmail(
         subject,
         htmlContent: html,
         textContent: text,
+        ...(logoAttachment ? { attachment: [logoAttachment] } : {}),
       }),
     });
 

@@ -17,6 +17,7 @@ import { getSettings } from '@/lib/settings';
 import { actionVerbs, writeAuditLog } from '@/lib/audit';
 import { ActorType, InstallmentStatus, InvestmentRequestStatus, InvestmentStatus, DepositMethod, TransactionType, RequestKind } from '@/lib/generated/prisma/client';
 import { createInvestmentRecord } from '@/lib/investments';
+import { createPaymentGroup } from '@/lib/payment-groups';
 
 export type RequestMeta = { ipAddress: string | null; userAgent: string | null };
 
@@ -70,7 +71,7 @@ export async function submitInvestmentRequest(
   }
   const paymentPlan: PaymentPlanValue = input.paymentPlan ?? 'FULL';
   if (paymentPlan === 'INSTALLMENT' && !canPayByInstallment(input.shares)) {
-    throw new Error('Installment payment is only available for exactly 1 share');
+    throw new Error('Installment payment requires at least 1 share');
   }
 
   const settings = await getSettings();
@@ -169,7 +170,7 @@ export async function approveInvestmentRequest(
     const effectiveDepositDate = input.depositDate ?? request.depositDate;
     const paymentPlan: PaymentPlanValue = request.paymentPlan ?? 'FULL';
     if (paymentPlan === 'INSTALLMENT' && !canPayByInstallment(effectiveShares)) {
-      throw new Error('Installment payment is only available for exactly 1 share');
+      throw new Error('Installment payment requires at least 1 share');
     }
 
     assertEntrepreneurEligible(effectiveShares, effectiveIsEntrepreneur);
@@ -194,6 +195,16 @@ export async function approveInvestmentRequest(
     const investmentStatus = InvestmentStatus.CONFIRMED;
     const confirmedAt = new Date();
 
+    // Every approval creates the payment group that owns this purchase:
+    // FULL → INSTANT (NHL-PG-…), INSTALLMENT → KISTI agreement (NHL-K-…).
+    const paymentGroup = await createPaymentGroup(tx, {
+      investorId: request.investorId,
+      kind: paymentPlan === 'INSTALLMENT' ? 'KISTI' : 'INSTANT',
+      shareCount: effectiveShares,
+      totalAmount,
+      slipFileKey: request.slipFileKey,
+    });
+
     const investment = await createInvestmentRecord(tx, {
       investorId: request.investorId,
       shares: effectiveShares,
@@ -213,6 +224,7 @@ export async function approveInvestmentRequest(
       notes: input.reviewNote ?? null,
       recordedByStaffId: input.staffId,
       status: investmentStatus,
+      paymentGroupId: paymentGroup.id,
     });
 
     await tx.investment.update({

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
 import { amountInWords, formatBdt, type InvestmentCategory } from '@/lib/money';
@@ -104,8 +105,10 @@ export async function generateReceiptPdf(data: ReceiptData): Promise<Buffer> {
 
     doc.font('Helvetica');
     doc.rect(40, 40, 515, 84).lineWidth(1).stroke();
-    doc.font('Helvetica-Bold').fontSize(18).text('NEOBEE HOSPITAL PLC', 50, 52, { width: 320 });
-    doc.font('Helvetica-Bold').fontSize(16).text('Money Receipt', 50, 75, { width: 220 });
+    // Real brand mark inside the header band; text shifts right of it.
+    doc.image(path.join(process.cwd(), 'public', 'images', 'neobee-logo.jpeg'), 50, 48, { width: 68, height: 68 });
+    doc.font('Helvetica-Bold').fontSize(18).text('NEOBEE HOSPITAL PLC', 134, 52, { width: 260 });
+    doc.font('Helvetica-Bold').fontSize(16).text('Money Receipt', 134, 75, { width: 220 });
     doc.font('Helvetica').fontSize(11).text(data.uid, 410, 56, { width: 120, align: 'right' });
 
     let y = 142;

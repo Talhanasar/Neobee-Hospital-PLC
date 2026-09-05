@@ -1,9 +1,8 @@
 import type { Investor, Staff } from '@/lib/generated/prisma/client';
-import { isAuthApiError } from '@supabase/supabase-js';
 import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/db';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/auth-own';
 import { demoInvestorForAuthUser, demoStaffForAuthUser, isDemoData } from '@/data/demo/store';
 
 export class AuthError extends Error {
@@ -16,26 +15,8 @@ export class AuthError extends Error {
   }
 }
 
-// Warn once per process instead of spamming a stack trace on every request.
-let authFailureWarned = false;
-
-function reportAuthFailure(error: unknown): void {
-  if (authFailureWarned) {
-    return;
-  }
-  authFailureWarned = true;
-  // Only ever log error messages, never tokens or cookies.
-  if (isAuthApiError(error) && error.status === 401) {
-    console.warn(
-      'Supabase auth unavailable (AuthApiError 401 Invalid API key). If your key looks like a JWT (eyJ...), the project\'s legacy API keys were likely disabled — replace NEXT_PUBLIC_SUPABASE_ANON_KEY with the new sb_publishable_... key (Dashboard → Settings → API Keys). Run: pnpm check:env',
-    );
-  } else {
-    console.warn(`Supabase auth call failed: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
 export async function getAuthUser(): Promise<{ id: string } | null> {
-  // Demo mode: a signed cookie stands in for the Supabase session —
+  // Demo mode: a signed cookie stands in for the session —
   // the demo presentation must run with zero external dependencies.
   if (isDemoData()) {
     const demoRole = (await cookies()).get('neobee-demo-role')?.value;
@@ -48,18 +29,13 @@ export async function getAuthUser(): Promise<{ id: string } | null> {
     if (demoRole === 'admin') return { id: 'demo-auth-admin' };
     return null;
   }
-  const supabase = await createClient();
+
   try {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
-      if (error) {
-        reportAuthFailure(error);
-      }
-      return null;
-    }
-    return { id: data.user.id };
+    const user = await getCurrentUser();
+    if (!user) return null;
+    return { id: user.id };
   } catch (error) {
-    reportAuthFailure(error);
+    console.warn(`Auth call failed: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
@@ -78,8 +54,24 @@ async function getStaffForUser(authUserId: string): Promise<Staff | null> {
 }
 
 export async function requireStaff(): Promise<Staff> {
-  const authUserId = await loadAuthUserId();
-  const staff = await getStaffForUser(authUserId);
+  if (isDemoData()) {
+    const authUserId = await loadAuthUserId();
+    const staff = await getStaffForUser(authUserId);
+    if (!staff || !staff.isActive) {
+      throw new AuthError('Forbidden', 403);
+    }
+    return staff;
+  }
+
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
+    throw new AuthError('Unauthenticated', 401);
+  }
+  if (currentUser.role !== 'STAFF' && currentUser.role !== 'ADMIN') {
+    throw new AuthError('Forbidden', 403);
+  }
+
+  const staff = await prisma.staff.findUnique({ where: { authUserId: currentUser.id } });
   if (!staff || !staff.isActive) {
     throw new AuthError('Forbidden', 403);
   }
@@ -87,8 +79,24 @@ export async function requireStaff(): Promise<Staff> {
 }
 
 export async function requireAdmin(): Promise<Staff> {
-  const staff = await requireStaff();
-  if (staff.role !== 'ADMIN') {
+  if (isDemoData()) {
+    const staff = await requireStaff();
+    if (staff.role !== 'ADMIN') {
+      throw new AuthError('Forbidden', 403);
+    }
+    return staff;
+  }
+
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
+    throw new AuthError('Unauthenticated', 401);
+  }
+  if (currentUser.role !== 'ADMIN') {
+    throw new AuthError('Forbidden', 403);
+  }
+
+  const staff = await prisma.staff.findUnique({ where: { authUserId: currentUser.id } });
+  if (!staff || !staff.isActive || staff.role !== 'ADMIN') {
     throw new AuthError('Forbidden', 403);
   }
   return staff;

@@ -41,7 +41,7 @@ export default async function LoginPage({ params, searchParams }: Props) {
             <p>{t('demoHint')}</p>
           </div>
           <div className="mt-4">
-            <DemoLoginButtons />
+            <DemoLoginButtons showKisti={demoEnabled} />
           </div>
         </div>
       ) : null}

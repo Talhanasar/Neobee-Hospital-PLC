@@ -1,12 +1,16 @@
 import 'server-only';
 import { cookies } from 'next/headers';
 
-export const SESSION_COOKIE_NAME = '__Host-neobee_session';
+// __Host- prefix (Secure + Path=/ + no Domain) in production over HTTPS.
+// Development runs on plain HTTP, where browsers reject Secure cookies — so
+// dev uses a plain name without the Secure flag. Same session semantics.
+export const SESSION_COOKIE_NAME =
+  process.env.NODE_ENV === 'production' ? '__Host-neobee_session' : 'neobee_session';
+export const SESSION_COOKIE_SECURE = process.env.NODE_ENV === 'production';
 // 24h, matching the default session TTL used by store.createSession.
 export const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24;
 
 export async function setSessionCookie(token: string): Promise<void> {
-  // The __Host- prefix requires Secure + Path=/ and no Domain.
   // sameSite is 'lax' on purpose: 'strict' would break top-navigation links
   // opened from email clients (e.g. clicking a verification/reset link opens the
   // app in a top-level navigation where a Strict cookie is dropped), whereas
@@ -15,7 +19,7 @@ export async function setSessionCookie(token: string): Promise<void> {
   const jar = await cookies();
   jar.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: true,
+    secure: SESSION_COOKIE_SECURE,
     sameSite: 'lax',
     path: '/',
     maxAge: SESSION_COOKIE_MAX_AGE_SECONDS,
@@ -27,7 +31,7 @@ export async function clearSessionCookie(): Promise<void> {
   jar.delete({
     name: SESSION_COOKIE_NAME,
     path: '/',
-    secure: true,
+    secure: SESSION_COOKIE_SECURE,
     httpOnly: true,
     sameSite: 'lax',
   });
